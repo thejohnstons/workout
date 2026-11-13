@@ -3,6 +3,7 @@
    ===================================================================== */
 import * as F from '/family.js';
 import * as P from './plan.js';
+import * as M from './muscles.js';
 
 const $ = s => document.querySelector(s);
 const esc = F.esc;
@@ -33,11 +34,28 @@ function nextClip(){
 }
 function quiet(){ vQueue = []; clearTimeout(vStop); vBusy = false; try{ vAudio.pause(); }catch(e){} }
 
+/* ---------- Look and features (Nathan: dark lime, no cycle) ---------- */
+let famLook = null; // from the family apps' saved style: Classic green → dark
+const look = () => S.look || famLook || 'light';
+const cycleOn = () => S.cycle !== undefined ? !!S.cycle : look() !== 'dark';
+const MAPCOLS = () => look()==='dark' ? ['#2B2F2A','#5E7A2A','#C8F35C'] : ['#E4E1EE','#AFC0FF','#3A5BF0'];
+function applyLook(){
+  document.documentElement.dataset.look = look();
+  const tb = document.querySelector('#tabs [data-go="cycle"]'); if(tb) tb.hidden = !cycleOn();
+  document.querySelector('#tabs .in').style.gridTemplateColumns = `repeat(${cycleOn()?6:5},1fr)`;
+  const mt = document.querySelector('meta[name="theme-color"]'); if(mt) mt.content = look()==='dark' ? '#0E0F0E' : '#F2F1F7';
+}
+function muscleBlock(ids, size=150, withLabel=true){
+  const w = M.worked(ids); if(!w.main.length) return '';
+  return `<div class="mm">${M.bodyMap(w.main, w.sup, MAPCOLS(), size)}${withLabel ? `<p class="mm-l"><b>${esc(M.label(w.main))}</b>${w.sup.length?`<br><span>also ${esc(M.label(w.sup))}</span>`:''}</p>` : ''}</div>`;
+}
+const sessionIds = sess => (sess.ex||[]).flatMap(b => (b.ss||[b]).map(i=>i.id));
+
 /* ---------- Data ---------- */
 const metaSave = patch => F.patch('~move_meta', 'state', patch);
 const isDone = (date, key) => logs.find(l => l.date===date && l.planKey===key);
 const thisWeek = () => P.monday(TODAY());
-const periodWeek = (date=TODAY()) => pweeks[P.monday(date)] || null;
+const periodWeek = (date=TODAY()) => cycleOn() ? (pweeks[P.monday(date)] || null) : null;
 function lastSets(exId){
   const ls = logs.filter(l => l.sets && l.sets[exId] && l.sets[exId].length).sort((a,b)=> (b.at||0)-(a.at||0));
   return ls.length ? ls[0].sets[exId] : null;
@@ -105,6 +123,7 @@ document.addEventListener('click', e => { const g = e.target.closest('[data-go]'
 
 function render(){
   if(!user) return;
+  applyLook(); if(view==='cycle' && !cycleOn()) view = 'today';
   VIEWS.forEach(v => { $('#v-'+v).hidden = v!==view; });
   document.querySelectorAll('#tabs [data-go]').forEach(b => b.setAttribute('aria-current', b.dataset.go===view ? 'page' : 'false'));
   ({today:renderToday, programs:renderPrograms, run:renderRun, stretch:renderStretch, cycle:renderCycle, progress:renderProgress})[view]();
@@ -115,7 +134,7 @@ function render(){
    ===================================================================== */
 function estMins(sess){ let n = 0; (sess.ex||[]).forEach(b => (b.ss||[b]).forEach(x => { n += x.sets; })); return Math.round(3 + n*1.6); }
 function cycleChip(){
-  if(!periods.length) return '';
+  if(!cycleOn() || !periods.length) return '';
   const st = P.cycleStats(periods), day = P.cycleDay(st, TODAY()), ph = P.phase(st, day);
   return ph ? `<button class="chip" data-go="cycle" type="button" style="border:0">🌸 Cycle day ${day} · ${esc(ph.n)}</button>` : '';
 }
@@ -135,7 +154,7 @@ function renderToday(){
       const done = logs.some(l => l.date===d && l.kind!=='stretch-night' && !(l.planKey==='night'));
       const run = pl.some(x=>x.kind==='run'), cls = done ? 'done' : d===date ? 'today' : run ? 'run' : pl.length ? 'plan' : '';
       return `<div><div class="d">${dn}</div><div class="n ${cls}${isPeriodDay(d)?' flow':''}">${done?'✓':P.parse(d).getDate()}</div></div>`; }).join('')}</div>
-    <p class="note" style="margin:10px 0 0">● done · ○ planned · <span style="color:#7A9A1E">●</span> run · 🌸 period</p></div>`;
+    <p class="note" style="margin:10px 0 0">● done · ○ planned · <span style="color:#7A9A1E">●</span> run${cycleOn()?' · 🌸 period':''}</p></div>`;
   // today's sessions
   const main = plan.filter(x => !x.night && !x.optional);
   if(!S.program) html += `<div class="tint c-pink" style="margin-top:12px"><p class="kicker">Get started</p><p class="big">Choose a program</p><p class="muted">Pick from 11 programs. Weeks run Monday to Sunday.</p><button class="btn" data-go="programs" type="button">See programs</button></div>`;
@@ -143,7 +162,7 @@ function renderToday(){
     const d = isDone(date, x.key);
     if(x.kind==='strength'){
       const c = x.period ? 'c-peach' : 'c-'+(P.program(S.program).c||'pink');
-      html += `<div class="tint ${c}" style="margin-top:12px"><p class="kicker">${x.period?'Period week':'Today'}</p><p class="big">${esc(x.title)}</p>
+      html += `<div class="tint ${c} hero" style="margin-top:12px"><div class="mm-float">${muscleBlock(sessionIds(x.session), 104, false)}</div><p class="kicker">${x.period?'Period week':'Today'}</p><p class="big">${esc(x.title)}</p>
         <p class="muted" style="margin:0 0 10px">${esc((x.session.ex||[]).map(b => (b.ss||[b]).map(i=>P.EX[i.id].n).join(' + ')).slice(0,3).join(' · '))}${x.session.ex.length>3?' and more':''}</p>
         <div class="row" style="margin-bottom:12px"><span class="chip">⏱ about ${estMins(x.session)} min</span>${x.gentle?'<span class="chip">🌸 Gentler version</span>':''}${x.week?`<span class="chip">Week ${x.week}</span>`:''}</div>
         ${d ? `<div class="row"><span class="chip" style="background:var(--btn);color:var(--btnInk)">✓ Done</span><button class="btn soft" type="button" data-undo="${d.id}">Undo</button><button class="btn soft" type="button" data-fin="1">➕ Add a finisher</button></div>`
@@ -174,7 +193,7 @@ function renderToday(){
   html += act.length ? `<div class="card">${act.map(([id,c]) => challengeRow(id,c)).join('')}</div>` : `<p class="empty">No challenge running. Sprinkle one in whenever you like.</p>`;
   $('#v-today').innerHTML = html;
 }
-function isPeriodDay(d){ return periods.some(p => d >= p.start && d < P.addDays(p.start, p.days||5)); }
+function isPeriodDay(d){ return cycleOn() && periods.some(p => d >= p.start && d < P.addDays(p.start, p.days||5)); }
 function deepThisWeek(){ const m = thisWeek(); return logs.filter(l => l.planKey==='deep' && P.monday(l.date)===m).length; }
 function nextRunKm(){
   const rw = Math.min(P.runWeek(S, TODAY()), P.RUN_PLAN.length), planned = P.RUN_PLAN[rw-1];
@@ -254,7 +273,7 @@ function drawStep(){
   if(PL.i>0 && PL.steps[PL.i-1].warm && !s.warm) say("Warm-up done. Let's get into it.");
   if(s.type==='timed' || s.type==='hold'){
     let left = s.secs, running = false;
-    $('#player').innerHTML = `<div class="in">${header(title)}<div class="now ${s.warm?'c-peach':''}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.warm?'Warm-up':`Set ${s.round} of ${s.sets}`}</span>${watchLink(s.id)}</div><p class="name">${esc(nameOf(s.id))}</p>${P.EX[s.id]&&P.EX[s.id].side?'<p class="muted" style="margin:0">Each side</p>':''}<div class="clock" id="clk">${fmt(left)}</div>
+    $('#player').innerHTML = `<div class="in">${header(title)}<div class="now ${s.warm?'c-peach':''}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.warm?'Warm-up':`Set ${s.round} of ${s.sets}`}</span>${watchLink(s.id)}</div><p class="name">${esc(nameOf(s.id))}</p>${P.EX[s.id]&&P.EX[s.id].side?'<p class="muted" style="margin:0">Each side</p>':''}${s.warm?'':muscleBlock([s.id], 132)}<div class="clock" id="clk">${fmt(left)}</div>
       <div class="row" style="justify-content:center"><button class="btn" id="go" type="button">▶ Start</button><button class="btn soft" id="skip" type="button">Skip</button></div></div><h2>Up next</h2><div class="card">${upNext(PL.i+1)}</div></div>`;
     const tick = () => { left--; $('#clk').textContent = fmt(left); if(left===10 && s.secs>=30) say('Ten seconds left.'); if(left<=0){ clearInterval(plTimer); if(s.type==='hold'){ (PL.sets[s.id] = PL.sets[s.id] || []).push({r:s.secs+' s'}); } advance(s); } };
     $('#go').onclick = () => { if(running){ clearInterval(plTimer); running=false; $('#go').textContent='▶ Resume'; return; } running = true; $('#go').textContent='⏸ Pause'; if(left===s.secs) say(P.EX[s.id] ? P.EX[s.id].v : null, 'Three. Two. One. Go!'); plTimer = setInterval(tick, 1000); };
@@ -270,6 +289,7 @@ function drawStep(){
   const ex = P.EX[s.id] || {};
   $('#player').innerHTML = `<div class="in">${header(title)}<div class="now"><div class="row" style="justify-content:space-between"><span class="kicker">Set ${s.round} of ${s.sets}${s.ss?' · superset':''}</span>${watchLink(s.id)}</div>
     <p class="name">${esc(ex.n||s.id)}</p><p class="muted" style="margin:0">${esc(s.reps)} reps${ex.side && !String(s.reps).includes('each')?' each side':''}${PL.gentle?' · gentler version':''}</p>
+    ${muscleBlock([s.id], 132)}
     ${lastStr ? `<p class="note" style="margin:8px 0 0">Last time: ${esc(lastStr)}</p>` : ''}
     ${sug ? `<div class="suggest">${sug.up?'📈':'💡'} ${esc(sug.msg)}</div>` : ''}
     <div class="setrow">${ex.w ? `<span></span><label><input id="w" inputmode="decimal" value="${w0}" aria-label="Weight in kg"><small>kg</small></label>` : '<span></span><span></span>'}<label><input id="r" inputmode="numeric" value="${r0}" aria-label="Reps"><small>reps</small></label></div>
@@ -333,7 +353,7 @@ function drawInterval(resting){
   let left = resting ? s.rest : s.secs; const nx = resting ? PL.steps[PL.i+1] : null;
   if(resting && !nx){ PL.i++; return drawInterval(false); }
   const show = resting ? nx : s;
-  $('#player').innerHTML = `<div class="in">${header(PL.f.name)}<div class="${resting?'rest':'now c-'+PL.f.c}"><div class="row" style="justify-content:space-between"><span class="kicker">${resting?'Rest · next up':'Go!'}</span>${resting?'':watchLink(s.id)}</div><p class="name">${esc(nameOf(show.id))}</p><div class="clock" id="clk">${fmt(left)}</div>
+  $('#player').innerHTML = `<div class="in">${header(PL.f.name)}<div class="${resting?'rest':'now c-'+PL.f.c}"><div class="row" style="justify-content:space-between"><span class="kicker">${resting?'Rest · next up':'Go!'}</span>${resting?'':watchLink(s.id)}</div><p class="name">${esc(nameOf(show.id))}</p>${resting?'':muscleBlock([s.id], 120)}<div class="clock" id="clk">${fmt(left)}</div>
     <div class="row" style="justify-content:center"><button class="btn soft" id="pause" type="button" style="color:inherit">⏸ Pause</button><button class="btn soft" id="skip" type="button" style="color:inherit">Skip</button></div></div></div>`;
   if(resting) say('Next up...', P.EX[nx.id].v); else say(P.EX[s.id].v, 'Three. Two. One. Go!');
   let paused = false;
@@ -453,7 +473,7 @@ function renderPrograms(){
 }
 function programSheet(id){
   const p = P.program(id), mon = thisWeek(), nextMon = P.addDays(mon, 7), sch = {...P.DEFAULT_SCHEDULE, ...(S.schedule||{})};
-  const dayHTML = slot => { const d = p.days[slot]; return `<div class="card" style="margin-top:10px"><p class="kicker muted">${P.DAY_NAMES[sch[slot]]}</p><p style="font-weight:800;font-size:17px;margin:2px 0 6px">${esc(d.title)}</p>${d.ex.map(b => (b.ss||[b]).map((x,k) => `<div class="item" style="padding:7px 0"><span class="ic" style="width:30px;height:30px;font-size:13px;background:var(--line)">${b.ss?(k?'↳':'SS'):'•'}</span><span><b style="font-size:14.5px">${esc(P.EX[x.id].n)}</b><span class="s">${x.sets} × ${esc(x.reps)}</span></span><a class="link" style="font-size:13px" href="${P.yt(P.EX[x.id].q)}" target="_blank" rel="noopener">Watch</a></div>`).join('')).join('')}</div>`; };
+  const dayHTML = slot => { const d = p.days[slot]; return `<div class="card" style="margin-top:10px"><p class="kicker muted">${P.DAY_NAMES[sch[slot]]}</p><p style="font-weight:800;font-size:17px;margin:2px 0 6px">${esc(d.title)}</p>${muscleBlock(sessionIds(d), 120)}${d.ex.map(b => (b.ss||[b]).map((x,k) => `<div class="item" style="padding:7px 0"><span class="ic" style="width:30px;height:30px;font-size:13px;background:var(--line)">${b.ss?(k?'↳':'SS'):'•'}</span><span><b style="font-size:14.5px">${esc(P.EX[x.id].n)}</b><span class="s">${x.sets} × ${esc(x.reps)}</span></span><a class="link" style="font-size:13px" href="${P.yt(P.EX[x.id].q)}" target="_blank" rel="noopener">Watch</a></div>`).join('')).join('')}</div>`; };
   const isCur = S.program===id;
   openSheet(`${p.e} ${p.name}`, `<p class="muted" style="margin-top:0">${esc(p.blurb)}</p><div class="row"><span class="chip" style="background:var(--card)">${p.weeks} week${p.weeks>1?'s':''}</span><span class="chip" style="background:var(--card)">${esc(p.level)}</span><span class="chip" style="background:var(--card)">3 sessions a week</span></div>
     ${['A','B','C'].map(dayHTML).join('')}
@@ -520,7 +540,9 @@ function renderCycle(){
   html += `<h2>Recent cycles</h2><div class="card">${ps.map((p,i) => { const nxt = ps[i-1], len = nxt ? Math.round((P.parse(nxt.start)-P.parse(p.start))/864e5) : null; return `<div class="item" style="grid-template-columns:90px 1fr auto;padding:9px 0"><span class="note" style="font-weight:700;color:var(--ink)">${P.parse(p.start).getDate()} ${F.MONTHS[P.parse(p.start).getMonth()].slice(0,3)}</span><span style="height:10px;border-radius:999px;background:linear-gradient(90deg,var(--u-rose) 0 ${Math.round((p.days||5)/31*100)}%,var(--u-cream) 0)"></span><span class="note">${len ? len+' days' : 'current'}</span></div>`; }).join('') || '<p class="empty">No cycles yet.</p>'}</div>`;
   html += `<div class="card" style="margin-top:12px;background:var(--u-cream)"><b>Your patterns</b><p class="note" style="margin:6px 0 0;color:var(--ink)">From your Flo history: cramps and backache in the first couple of days, and tiredness and headaches in the last few days before a period. The app keeps those days a bit gentler when you ask it to.</p></div>
     <p class="note" style="margin-top:12px">🔒 Only you can see this. Predictions are estimates from your past cycles, not medical advice.</p>`;
+  if(!periods.length) html += `<div class="card" style="margin-top:12px"><b>Bring in your Flo history?</b><p class="note" style="margin:6px 0 10px;color:var(--ink)">Adds the 6 cycles from your Flo report (June to November 2026), so predictions work straight away.</p><button class="cbtn" id="floGo" type="button">Add my Flo history</button></div>`;
   $('#v-cycle').innerHTML = html;
+  const fg = $('#floGo'); if(fg) fg.onclick = async () => { for(const p of P.FLO_HISTORY) await F.put('~move_cycle', {id:'p'+p.start, start:p.start, days:p.days, ended:true, from:'Flo'}); toast('Flo history added 🌸'); };
   const sB = $('#pStart'); if(sB) sB.onclick = () => openSheet('Period started', `<label class="l" for="pd">When did it start?</label><input class="f" id="pd" type="date" value="${date}" max="${date}"><button class="btn wide" id="pOk" type="button" style="margin-top:14px">Save</button>`, body => {
     body.querySelector('#pOk').onclick = async () => { const d = body.querySelector('#pd').value || date; await F.put('~move_cycle', {id:'p'+d, start:d, days:st.plen}); closeSheet(); if(P.monday(d)===thisWeek()) feelingSheet(d); else toast('Saved 🌸'); }; });
   const eB = $('#pEnd'); if(eB) eB.onclick = async () => { const days = Math.round((P.parse(date)-P.parse(open.start))/864e5)+1; await F.patch('~move_cycle', open.id, {days, ended:true}); toast('Saved 🌸'); };
@@ -575,6 +597,10 @@ function settingsSheet(){
     ${!F.CAL_CLIENT_ID ? '<p class="note">Google isn’t set up yet.</p>' : !t ? `<p class="note">Connect Google so finished workouts go into your Exercise calendar as all-day events.</p><button class="btn" id="gConnect" type="button">Connect Google</button>`
       : `<p class="note">${S.calendarId ? `Adding workouts to <b>${esc(S.calendarName||'your calendar')}</b>.` : 'Choose your Exercise calendar:'}</p><div id="calPick" class="stack"><p class="note">Loading your calendars…</p></div>
          <button class="btn line wide" id="impBtn" type="button" style="margin-top:12px">${IMP ? 'Import past workouts again' : 'Import past workouts from this calendar'}</button>${IMP ? `<p class="note">Last import: ${IMP.total} workouts${IMP.first ? ', back to '+esc(IMP.first) : ''}.</p>` : ''}`}
+    <h2>Look and features</h2>
+    <div class="chips" role="group" aria-label="Look"><button class="chip" type="button" data-look="light" aria-pressed="${look()==='light'}">🌸 Pastel</button><button class="chip" type="button" data-look="dark" aria-pressed="${look()==='dark'}">🖤 Dark and lime</button></div>
+    <div class="chips" style="margin-top:10px"><button class="chip" type="button" id="cycTog" aria-pressed="${cycleOn()}">🌸 Cycle tracking ${cycleOn()?'on':'off'}</button></div>
+    <p class="note">Only changes your own app. Cycle data is always private to you.</p>
     <h2>Sound</h2><div class="chips"><button class="chip" type="button" id="vOn" aria-pressed="${voiceOn()}">🔊 Trainer voice ${voiceOn()?'on':'off'}</button></div>
     <p class="note">Plays over your music. On newer iPhones your music should dip for each prompt.</p>
     <h2>Account</h2><p class="note">Signed in as ${esc(user.email)}. 🔒 Your workouts and cycle are private to you.</p><button class="btn line" id="out" type="button">Sign out</button>`, async body => {
@@ -583,6 +609,8 @@ function settingsSheet(){
       await metaSave({schedule:{A:g('A'),B:g('B'),C:g('C'),run:g('run'),runOpt:g('runOpt'),deep:[...body.querySelectorAll('[data-deep][aria-pressed="true"]')].map(b=>+b.dataset.deep)}}); toast('Your week is saved ✓'); closeSheet(); };
     body.querySelector('#vOn').onclick = e => { local.set('voice', !voiceOn()); e.target.setAttribute('aria-pressed', String(voiceOn())); e.target.textContent = '🔊 Trainer voice '+(voiceOn()?'on':'off'); if(voiceOn()) say('Ready? Let\'s go.'); };
     body.querySelector('#out').onclick = () => F.logOut();
+    body.querySelectorAll('[data-look]').forEach(b => b.onclick = async () => { await metaSave({look:b.dataset.look}); settingsSheet(); });
+    body.querySelector('#cycTog').onclick = async () => { await metaSave({cycle: !cycleOn()}); settingsSheet(); };
     const gc = body.querySelector('#gConnect'); if(gc) gc.onclick = () => connect(() => settingsSheet());
     const ib = body.querySelector('#impBtn'); if(ib) ib.onclick = () => importHistory(ib);
     const cp = body.querySelector('#calPick');
@@ -611,7 +639,7 @@ F.watchUser(u => {
   F.listen('~move_cycle', rows => { periods = rows; loaded.cycle = 1; render(); }, () => {});
   F.listen('~move_periodweek', rows => { pweeks = {}; rows.forEach(r => pweeks[r.id] = r); render(); }, () => {});
   F.listen('~move_symptoms', rows => { symptoms = {}; rows.forEach(r => symptoms[r.id] = r); }, () => {});
-  F.seedOnce('move-flo-' + String(u.email).toLowerCase().replace(/[^a-z0-9]/g,'-'), [['~move_cycle', P.FLO_HISTORY.map(p => ({id:'p'+p.start, start:p.start, days:p.days, ended:true, from:'Flo'}))]]).catch(()=>{});
+  F.loadStyle(u.email).then(st => { famLook = st==='green' ? 'dark' : 'light'; render(); }).catch(()=>{});
   go(location.hash.slice(1) || 'today');
   setTimeout(() => { if(tok()) syncPending(); }, 2500);
 });

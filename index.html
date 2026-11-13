@@ -143,6 +143,42 @@ input.f,select.f,textarea.f{width:100%;border:0;border-radius:14px;background:va
 .banner{background:var(--peach);border-radius:18px;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;margin-bottom:12px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .gate{min-height:70vh;display:grid;place-items:center;text-align:center}
+
+/* muscle maps */
+.mm{display:flex;gap:12px;align-items:center;margin:10px 0 4px}
+.mm svg{flex:none}
+.mm-l{margin:0;font-size:13.5px;line-height:1.35}
+.mm-l span{color:var(--muted)}
+.mm-float{float:right;margin:-6px -6px 0 6px}
+.mm-float .mm{margin:0}
+/* ===== Dark and lime look (Nathan) ===== */
+:root[data-look="dark"]{color-scheme:dark;--bg:#0B0C0B;--card:#171917;--ink:#F3F5EF;--muted:#9BA196;--line:#2A2E29;
+  --pink:#171917;--lilac:#171917;--sky:#171917;--mint:#171917;--peach:#171917;--lime:#C8F35C;--blue:#C8F35C;
+  --btn:#C8F35C;--btnInk:#0B0C0B;--soft:rgba(255,255,255,.08);--shadow:none}
+:root[data-look="dark"] body{background:var(--bg)}
+:root[data-look="dark"] .tint,:root[data-look="dark"] .card,:root[data-look="dark"] .now{border:1px solid #262A25}
+:root[data-look="dark"] .tint:not(.c-lime):not(.hero) .kicker,:root[data-look="dark"] .now .kicker{color:var(--lime)}
+:root[data-look="dark"] .c-lime{background:#C8F35C;color:#0B0C0B;border-color:#C8F35C}
+:root[data-look="dark"] .c-lime .muted,:root[data-look="dark"] .c-lime .note,:root[data-look="dark"] .c-lime .s{color:#33410F}
+:root[data-look="dark"] .c-lime .btn{background:#0B0C0B;color:#C8F35C}
+:root[data-look="dark"] .c-lime .btn.soft,:root[data-look="dark"] .c-lime .chip{background:rgba(0,0,0,.12);color:#0B0C0B}
+:root[data-look="dark"] .c-lime .prog{background:rgba(0,0,0,.15)} :root[data-look="dark"] .c-lime .prog i{background:#0B0C0B}
+:root[data-look="dark"] .hero{background:linear-gradient(135deg,#8DB83A 0%,#3E5E1A 58%,#1B280D 100%);color:#fff;border:0}
+:root[data-look="dark"] .hero .muted{color:#E3EDD0} :root[data-look="dark"] .hero .kicker{color:#fff}
+:root[data-look="dark"] .hero .btn{background:#0B0C0B;color:#fff} :root[data-look="dark"] .hero .btn.soft,:root[data-look="dark"] .hero .chip{background:rgba(0,0,0,.28);color:#fff}
+:root[data-look="dark"] nav.tabs{background:#141614;box-shadow:none;border-top:1px solid #222621}
+:root[data-look="dark"] nav.tabs button[aria-current="page"]{background:var(--lime);color:#0B0C0B}
+:root[data-look="dark"] .week .run{color:#0B0C0B}
+:root[data-look="dark"] .rest{background:#171917;color:var(--ink);border:1px solid #2A2E29}
+:root[data-look="dark"] .rest .clock{color:var(--lime)}
+:root[data-look="dark"] .rest .btn.soft{background:rgba(255,255,255,.08)}
+:root[data-look="dark"] .player .pbar i{background:linear-gradient(90deg,#5E7A2A,#C8F35C)}
+:root[data-look="dark"] .tile{border:1px solid #262A25}
+:root[data-look="dark"] .tile.c-lime{border-color:#C8F35C}
+:root[data-look="dark"] .tile.c-lime span{color:#33410F}
+:root[data-look="dark"] .gear{background:#171917}
+:root[data-look="dark"] .item .ic{background:#222621}
+:root[data-look="dark"] .item .ic.c-lime{background:#C8F35C;color:#0B0C0B}
 </style>
 </head>
 <body>
