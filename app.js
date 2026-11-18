@@ -28,8 +28,13 @@ function say(...lines){
 function nextClip(){
   clearTimeout(vStop); const seg = vQueue.shift(); if(!seg){ vBusy = false; try{ vAudio.pause(); }catch(e){} return; }
   vBusy = true; if(!vAudio.src) vAudio.src = 'voice.mp3';
-  const [start, len] = seg;
-  const go = () => { try{ vAudio.currentTime = start; }catch(e){} vAudio.play().then(() => { vStop = setTimeout(nextClip, len*1000 + 120); }).catch(() => { vQueue = []; vBusy = false; }); };
+  const [start, len] = seg, end = start + len + 0.08;
+  // iPhones don't always jump to the exact spot, so each phrase has silence around it,
+  // and it stops by watching where the audio actually is (not with a timer).
+  const go = () => { try{ vAudio.currentTime = Math.max(0, start - 0.06); }catch(e){}
+    const safety = Date.now() + (len + 2.5)*1000;
+    vAudio.play().then(() => { const watch = () => { if(vAudio.paused || vAudio.currentTime >= end || Date.now() > safety){ try{ vAudio.pause(); }catch(e){} nextClip(); } else vStop = setTimeout(watch, 30); }; watch(); })
+      .catch(() => { vQueue = []; vBusy = false; }); };
   if(vAudio.readyState >= 1) go(); else vAudio.addEventListener('loadedmetadata', go, {once:true});
 }
 function quiet(){ vQueue = []; clearTimeout(vStop); vBusy = false; try{ vAudio.pause(); }catch(e){} }
@@ -62,10 +67,12 @@ function lastSets(exId){
 }
 function pb(exId){ let m = 0; logs.forEach(l => (l.sets && l.sets[exId] || []).forEach(s => { if(+s.w > m) m = +s.w; })); return m; }
 
-async function saveLog(log){
-  const item = {id:F.uid('l'), at:Date.now(), date:TODAY(), ...log, pendingCal:true};
-  await F.put('~move_logs', item);
-  addToCalendar(item).catch(()=>{});
+// Saves straight away on the phone (Firestore keeps it locally and syncs in the background),
+// so the screen never waits on a slow connection. Empty fields are removed first, because
+// the database rejects them.
+function saveLog(log){
+  const item = JSON.parse(JSON.stringify({id:F.uid('l'), at:Date.now(), date:TODAY(), ...log, pendingCal:true}));
+  F.put('~move_logs', item).then(() => addToCalendar(item).catch(()=>{})).catch(e => toast('Saved on this phone. It will sync when you’re back online.'));
   return item;
 }
 async function removeLog(log){
@@ -105,7 +112,7 @@ async function importHistory(btn){
 
 /* ---------- Toast ---------- */
 let toastT = null;
-function toast(msg){ let t = $('#toast'); if(!t){ t = document.createElement('div'); t.id='toast'; t.setAttribute('role','status'); t.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabh) + 20px + env(safe-area-inset-bottom,0px));background:var(--btn);color:var(--btnInk);padding:10px 16px;border-radius:999px;font-weight:700;z-index:99;max-width:90vw;text-align:center;font-size:14px'; document.body.appendChild(t); }
+function toast(msg){ let t = $('#toast'); if(!t){ t = document.createElement('div'); t.id='toast'; t.setAttribute('role','status'); t.style.cssText='pointer-events:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--tabh) + 20px + env(safe-area-inset-bottom,0px));background:var(--btn);color:var(--btnInk);padding:10px 16px;border-radius:999px;font-weight:700;z-index:99;max-width:90vw;text-align:center;font-size:14px'; document.body.appendChild(t); }
   t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(()=>{ t.hidden = true; }, 3200); }
 
 /* ---------- Sheets ---------- */
@@ -132,7 +139,7 @@ function render(){
 /* =====================================================================
    TODAY
    ===================================================================== */
-function estMins(sess){ let n = 0; (sess.ex||[]).forEach(b => (b.ss||[b]).forEach(x => { n += x.sets; })); return Math.round(3 + n*1.6); }
+function estMins(sess){ let n = 0; (sess.ex||[]).forEach(b => (b.ss||[b]).forEach(x => { n += x.sets; })); return Math.round(3 + n*1.6 + 5); }
 function cycleChip(){
   if(!cycleOn() || !periods.length) return '';
   const st = P.cycleStats(periods), day = P.cycleDay(st, TODAY()), ph = P.phase(st, day);
@@ -164,7 +171,7 @@ function renderToday(){
       const c = x.period ? 'c-peach' : 'c-'+(P.program(S.program).c||'pink');
       html += `<div class="tint ${c} hero" style="margin-top:12px"><div class="mm-float">${muscleBlock(sessionIds(x.session), 104, false)}</div><p class="kicker">${x.period?'Period week':'Today'}</p><p class="big">${esc(x.title)}</p>
         <p class="muted" style="margin:0 0 10px">${esc((x.session.ex||[]).map(b => (b.ss||[b]).map(i=>P.EX[i.id].n).join(' + ')).slice(0,3).join(' · '))}${x.session.ex.length>3?' and more':''}</p>
-        <div class="row" style="margin-bottom:12px"><span class="chip">⏱ about ${estMins(x.session)} min</span>${x.gentle?'<span class="chip">🌸 Gentler version</span>':''}${x.week?`<span class="chip">Week ${x.week}</span>`:''}</div>
+        <div class="row" style="margin-bottom:12px">${x.session.style?`<span class="chip">✨ ${esc(x.session.style)}</span>`:''}<span class="chip">⏱ about ${estMins(x.session)} min</span>${x.gentle?'<span class="chip">🌸 Gentler version</span>':''}${x.week?`<span class="chip">Week ${x.week}</span>`:''}</div>
         ${d ? `<div class="row"><span class="chip" style="background:var(--btn);color:var(--btnInk)">✓ Done</span><button class="btn soft" type="button" data-undo="${d.id}">Undo</button><button class="btn soft" type="button" data-fin="1">➕ Add a finisher</button></div>`
             : `<div class="row"><button class="btn" type="button" data-start="${x.key}">▶ Start workout</button><button class="btn soft" type="button" data-quick="${x.key}">Mark done</button></div>`}</div>`;
     } else if(x.kind==='run'){
@@ -221,7 +228,7 @@ document.addEventListener('click', async e => {
   if(t.id==='pwChange') return feelingSheet(periodWeek().from || TODAY());
   if(t.id==='openSettings') return settingsSheet();
   if(d.undo){ const l = logs.find(x=>x.id===d.undo); if(l) await removeLog(l); return; }
-  if(d.quick){ const x = P.planFor(S, TODAY(), {periodWeek:periodWeek()}).find(i=>i.key===d.quick); if(x) await saveLog({kind:x.kind, title:x.title, planKey:x.key, quick:true, program:x.program, week:x.week}); toast('Nice work! ✓'); return; }
+  if(d.quick){ const x = P.planFor(S, TODAY(), {periodWeek:periodWeek()}).find(i=>i.key===d.quick); if(x) saveLog({kind:x.kind, title:x.title, planKey:x.key, quick:true, program:x.program, week:x.week}); toast('Nice work! ✓'); return; }
   if(d.start){ const x = P.planFor(S, TODAY(), {periodWeek:periodWeek()}).find(i=>i.key===d.start); if(x) startStrength(x); return; }
   if(d.run){ return startRun(d.run); }
   if(d.logrun){ return runLogSheet(d.logrun, null); }
@@ -232,6 +239,7 @@ document.addEventListener('click', async e => {
   if(d.chquit){ const all = {...(S.challenges||{})}; delete all[d.chquit]; await F.put('~move_meta', {...S, id:'state', challenges:all}); return; }
   if(d.chjoin){ await metaSave({challenges:{...(S.challenges||{}), [d.chjoin]:{start:TODAY(), ticks:[]}}}); closeSheet(); toast('Challenge started! 🏆'); return; }
   if(d.prog){ return programSheet(d.prog); }
+  if(d.editcycle){ return editCycleSheet(d.editcycle); }
 });
 
 /* =====================================================================
@@ -242,29 +250,62 @@ async function keepAwake(on){ try{ if(on && 'wakeLock' in navigator) wake = awai
 function openPlayer(){ $('#player').hidden = false; document.body.style.overflow='hidden'; keepAwake(true); }
 function closePlayer(){ clearInterval(plTimer); plTimer = null; quiet(); PL = null; $('#player').hidden = true; document.body.style.overflow=''; keepAwake(false); render(); }
 function confirmClosePlayer(){ if(!PL || PL.finished || confirm('Leave this workout? Anything not saved will be lost.')) closePlayer(); }
-$('#player').addEventListener('click', e => { if(e.target.closest('[data-pclose]')) confirmClosePlayer(); });
+$('#player').addEventListener('click', e => { if(e.target.closest('[data-pclose]')) confirmClosePlayer(); else if(e.target.closest('[data-pback]')) goBack(); });
+function goBack(){
+  if(!PL || !canGoBack()) return;
+  clearInterval(plTimer); quiet();
+  if(PL.kind==='strength'){
+    const prev = PL.hist.pop(), st = PL.steps[prev];
+    if(PL.logged && PL.logged[prev]){ const arr = PL.sets[st.id] || []; arr.pop(); if(!arr.length) delete PL.sets[st.id]; delete PL.logged[prev]; }
+    PL.i = prev; drawStep(); toast('Back to '+nameOf(st.id)+(st.type==='set' ? `, set ${st.round}` : ''));
+  } else if(PL.kind==='finisher'){ PL.i = Math.max(0, PL.i-1); drawInterval(false); }
+  else if(PL.kind==='stretch'){ PL.i = Math.max(0, PL.i-1); drawStretch(); }
+  else if(PL.kind==='run'){ PL.p = Math.max(0, PL.p-1); PL.phaseStart = Date.now(); drawRun(); }
+}
 
 function swap(id, gentle){ return gentle && P.EX[id] && P.EX[id].low ? P.EX[id].low : id; }
+function perSide(reps){ return /each/.test(String(reps)); }
+const gearChip = id => `<span class="chip" style="background:var(--soft)">🏋️ ${esc(P.gear(id))}</span>`;
+/* A countdown that runs off the real clock, so it stays right while the phone is in
+   another app; when you come back it catches up (and moves on if time is up). */
+function countdown(secs, onTick, onDone){
+  let end = Date.now() + secs*1000, held = null, last = null;
+  const step = () => { if(held !== null) return; const left = Math.max(0, Math.ceil((end - Date.now())/1000));
+    if(left !== last){ last = left; onTick(left); } if(left <= 0){ clearInterval(plTimer); onDone(); } };
+  clearInterval(plTimer); plTimer = setInterval(step, 250); step();
+  return { pause(){ if(held === null) held = end - Date.now(); }, resume(){ if(held !== null){ end = Date.now() + held; held = null; } }, add(s){ end += s*1000; last = null; step(); }, get paused(){ return held !== null; } };
+}
+document.addEventListener('visibilitychange', () => { if(!document.hidden && PL) { /* timers catch up on their next tick */ } });
+// A short "get ready" countdown before a timer starts. Calls done() when finished.
+function leadIn(el, label, clip, done, secs=3){
+  say(clip);
+  return countdown(secs, n => { if(n > 0) el.innerHTML = `<span style="display:block;font-size:15px;font-weight:700;opacity:.75">${esc(label)}</span>${n}`; }, done);
+}
 function isTimed(reps){ return /\d\s*s\b/.test(String(reps)); }
 function secsOf(reps){ const m = String(reps).match(/(\d+)\s*s/); return m ? +m[1] : 30; }
 
 function startStrength(x){
   const sess = x.session, gentle = x.gentle || x.period, steps = [];
-  const warm = {lower:[['squat',30],['bridge',30],['hydrant',20],['bandwalk',30]], upper:[['pullapart',30],['kpushup',30],['birddog',30],['deadbug',30]], full:[['jacks',30],['squat',30],['birddog',30],['deadbug',30]], core:[['birddog',30],['deadbug',30],['bridge',30],['plank',20]]}[sess.warm||'full'];
-  warm.forEach(([id,s]) => steps.push({type:'timed', warm:true, id:swap(id,gentle), secs:s, rest:10}));
+  const seed = P.daySeed(TODAY(), x.slot), warm = P.warmFor(sess.warm||'full', seed).map(([id, secs]) => [id, P.EX[id] && P.EX[id].side ? 20 : secs]);
+  warm.forEach(([id,s]) => { const sid = swap(id,gentle); steps.push({type:'timed', warm:true, id:sid, secs:s, sides: !!(P.EX[sid] && P.EX[sid].side), rest:10}); });
   sess.ex.forEach((b, bi) => {
     const items = (b.ss || [b]).map(i => ({...i, id:swap(i.id, gentle), sets: gentle ? Math.max(2, i.sets-1) : i.sets}));
     const rounds = Math.max(...items.map(i=>i.sets));
     for(let r=1; r<=rounds; r++) items.forEach((it, k) => { if(r > it.sets) return; const lastInRound = k===items.length-1;
-      steps.push({type: isTimed(it.reps) ? 'hold' : 'set', id:it.id, round:r, sets:it.sets, reps:it.reps, secs: isTimed(it.reps) ? secsOf(it.reps) : 0, rest: lastInRound ? (it.rest||60) : 0, ss: items.length>1, block:bi}); });
+      steps.push({type: isTimed(it.reps) ? 'hold' : 'set', id:it.id, round:r, sets:it.sets, reps:it.reps, secs: isTimed(it.reps) ? secsOf(it.reps) : 0, sides: isTimed(it.reps) && perSide(it.reps), rest: lastInRound ? (it.rest||60) : 0, ss: items.length>1, block:bi}); });
   });
+  P.coolFor(sess.warm||'full', seed).forEach(([id, secs], k) => steps.push({type:'timed', cool:true, first:k===0, auto:k>0, id, secs, sides: !!(P.STRETCH[id] && P.STRETCH[id].side), rest:0}));
   PL = {kind:'strength', x, gentle, steps, i:0, sets:{}, started:Date.now()};
+  if(sess.style) toast(`${sess.style}: ${sess.styleNote}`);
   openPlayer(); say(new Date().getHours()<11 ? "Good morning! Let's get moving." : null, "Let's start with a quick warm-up."); drawStep();
 }
-function header(title){ const n = PL.steps.length, i = Math.min(PL.i, n); return `<div class="bar"><button class="x" type="button" data-pclose>✕ Close</button><b style="text-align:center">${esc(title)}</b><span class="note">${i}/${n}</span></div><div class="pbar"><i style="width:${i/n*100}%"></i></div>`; }
+function canGoBack(){ return PL && (PL.kind==='strength' ? (PL.hist||[]).length > 0 : PL.kind==='run' ? PL.p > 0 : PL.i > 0); }
+function header(title){ const n = PL.steps.length, i = Math.min(PL.i, n); return `<div class="bar"><button class="x" type="button" data-pclose>✕ Close</button><b style="text-align:center">${esc(title)}</b><span class="note">${i}/${n}</span></div>
+  <div class="row" style="justify-content:space-between;margin-top:8px"><button class="x" type="button" data-pback ${canGoBack()?'':'disabled style="opacity:.4"'} aria-label="Go back to the previous ${PL.kind==='strength'?'set or exercise':'step'}">← Back</button></div><div class="pbar"><i style="width:${i/n*100}%"></i></div>`; }
 function watchLink(id){ const ex = P.EX[id] || P.STRETCH[id]; return ex ? `<a class="chip link" href="${P.yt(ex.q)}" target="_blank" rel="noopener">▶ Watch how</a>` : ''; }
 function nameOf(id){ return (P.EX[id] || P.STRETCH[id] || {n:id}).n; }
-function upNext(from, count=3){ return PL.steps.slice(from, from+count).map(s => `<div class="item" style="padding:8px 0"><span class="ic" style="width:32px;height:32px;font-size:15px;background:var(--line)">${s.type==='set'?'🏋️':s.warm?'🔥':'⏱'}</span><span><b style="font-size:14.5px">${esc(nameOf(s.id))}</b><span class="s">${s.type==='set'?`Set ${s.round} of ${s.sets} · ${esc(s.reps)}`: (s.secs||'')+' s'}</span></span><span></span></div>`).join(''); }
+function nameOfStep(s){ return (s && s.cool ? (P.STRETCH[s.id] || P.EX[s.id]) : (P.EX[s.id] || P.STRETCH[s.id]) || {n:s.id}).n; }
+function upNext(from, count=3){ return PL.steps.slice(from, from+count).map(s => `<div class="item" style="padding:8px 0"><span class="ic" style="width:32px;height:32px;font-size:15px;background:var(--line)">${s.type==='set'?'🏋️':s.warm?'🔥':'⏱'}</span><span><b style="font-size:14.5px">${esc(nameOf(s.id))}</b><span class="s">${s.type==='set'?`Set ${s.round} of ${s.sets} · ${esc(P.repsLabel(s.id, s.reps))}`: (s.secs||'')+' s'+(s.sides?' each side':'')} · ${esc(P.gear(s.id))}</span></span><span></span></div>`).join(''); }
 
 function drawStep(){
   clearInterval(plTimer);
@@ -272,13 +313,28 @@ function drawStep(){
   if(!s) return finishStrength();
   if(PL.i>0 && PL.steps[PL.i-1].warm && !s.warm) say("Warm-up done. Let's get into it.");
   if(s.type==='timed' || s.type==='hold'){
-    let left = s.secs, running = false;
-    $('#player').innerHTML = `<div class="in">${header(title)}<div class="now ${s.warm?'c-peach':''}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.warm?'Warm-up':`Set ${s.round} of ${s.sets}`}</span>${watchLink(s.id)}</div><p class="name">${esc(nameOf(s.id))}</p>${P.EX[s.id]&&P.EX[s.id].side?'<p class="muted" style="margin:0">Each side</p>':''}${s.warm?'':muscleBlock([s.id], 132)}<div class="clock" id="clk">${fmt(left)}</div>
-      <div class="row" style="justify-content:center"><button class="btn" id="go" type="button">▶ Start</button><button class="btn soft" id="skip" type="button">Skip</button></div></div><h2>Up next</h2><div class="card">${upNext(PL.i+1)}</div></div>`;
-    const tick = () => { left--; $('#clk').textContent = fmt(left); if(left===10 && s.secs>=30) say('Ten seconds left.'); if(left<=0){ clearInterval(plTimer); if(s.type==='hold'){ (PL.sets[s.id] = PL.sets[s.id] || []).push({r:s.secs+' s'}); } advance(s); } };
-    $('#go').onclick = () => { if(running){ clearInterval(plTimer); running=false; $('#go').textContent='▶ Resume'; return; } running = true; $('#go').textContent='⏸ Pause'; if(left===s.secs) say(P.EX[s.id] ? P.EX[s.id].v : null, 'Three. Two. One. Go!'); plTimer = setInterval(tick, 1000); };
-    $('#skip').onclick = () => advance(s);
-    if(s.warm && PL.i===0) {} // first warm-up waits for a tap
+    // Phases: one timer, or left side, a 3-second switch, then right side
+    const phases = s.sides ? [{label:'Left side', secs:s.secs}, {label:'Switch sides', secs:3, gap:true}, {label:'Right side', secs:s.secs}] : [{label:'', secs:s.secs}];
+    let pi = 0, left = phases[0].secs, running = false, started = false;
+    $('#player').innerHTML = `<div class="in">${header(title)}<div class="now ${s.warm?'c-peach':s.cool?'c-mint':''}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.warm?'Warm-up':s.cool?'Cool-down':`Set ${s.round} of ${s.sets}`}</span>${watchLink(s.id)}</div><p class="name">${esc(nameOf(s.id))}</p>
+      <div class="row" style="margin-top:4px">${gearChip(s.id)}${s.sides?`<span class="chip" style="background:var(--soft)">${s.secs} s each side</span>`:''}</div>
+      ${s.warm||s.cool?'':muscleBlock([s.id], 132)}<p class="kicker" id="side" style="text-align:center;margin:10px 0 0">${s.sides?'Left side first':''}</p><div class="clock" id="clk">${fmt(left)}</div>
+      <div class="row" style="justify-content:center"><button class="btn" id="go" type="button">▶ Start</button><button class="btn soft" id="skip" type="button">Skip</button></div>${s.cool?'<div class="row" style="justify-content:center;margin-top:10px"><button class="btn soft" id="skipCool" type="button">Skip cool-down</button></div>':''}</div><h2>Up next</h2><div class="card">${upNext(PL.i+1)}</div></div>`;
+    const clk = $('#clk'), sideEl = $('#side'); let cd = null;
+    const runPhase = () => { const ph = phases[pi]; sideEl.textContent = ph.label;
+      cd = countdown(ph.secs, n => { clk.textContent = fmt(n); if(!ph.gap && n===10 && ph.secs>=30) say('Ten seconds left.'); }, () => {
+        pi++;
+        if(pi < phases.length){ say(phases[pi].gap ? (s.cool ? 'Gently switch sides.' : 'Switch sides.') : (s.cool ? null : 'Three. Two. One. Go!')); runPhase(); return; }
+        if(s.type==='hold'){ (PL.sets[s.id] = PL.sets[s.id] || []).push({r:s.secs+' s'+(s.sides?' each side':'')}); (PL.logged = PL.logged || {})[PL.i] = true; }
+        advance(s); }); };
+    $('#go').onclick = () => {
+      if(!started){ started = true; running = true; $('#go').textContent='⏸ Pause'; if(s.cool) leadIn(clk, s.first ? 'Get into position' : 'Next stretch', s.first ? null : 'Hold this stretch.', runPhase, s.first ? 5 : 4); else leadIn(clk, 'Get ready', [P.EX[s.id] ? P.EX[s.id].v : null, 'Three. Two. One. Go!'], runPhase, 3); return; }
+      if(!cd) return;
+      if(running){ cd.pause(); running = false; $('#go').textContent='▶ Resume'; } else { cd.resume(); running = true; $('#go').textContent='⏸ Pause'; } };
+    $('#skip').onclick = () => { clearInterval(plTimer); advance(s); };
+    const sc = $('#skipCool'); if(sc) sc.onclick = () => { clearInterval(plTimer); quiet(); PL.i = PL.steps.length; finishStrength(); };
+    if(s.cool && s.first) say("Let's stretch.");
+    if(s.auto) $('#go').click();   // cool-down stretches flow into each other
     return;
   }
   // a set with weights or reps
@@ -288,26 +344,27 @@ function drawStep(){
   const w0 = prev ? prev.w : sug ? sug.w : (last ? Math.max(...last.map(x=>+x.w||0)) : ''), r0 = prev ? prev.r : P.topReps(s.reps);
   const ex = P.EX[s.id] || {};
   $('#player').innerHTML = `<div class="in">${header(title)}<div class="now"><div class="row" style="justify-content:space-between"><span class="kicker">Set ${s.round} of ${s.sets}${s.ss?' · superset':''}</span>${watchLink(s.id)}</div>
-    <p class="name">${esc(ex.n||s.id)}</p><p class="muted" style="margin:0">${esc(s.reps)} reps${ex.side && !String(s.reps).includes('each')?' each side':''}${PL.gentle?' · gentler version':''}</p>
+    <p class="name">${esc(ex.n||s.id)}</p><div class="row" style="margin:4px 0 6px">${gearChip(s.id)}</div><p class="muted" style="margin:0;font-weight:700;color:var(--ink)">${esc(P.repsLabel(s.id, s.reps))}${PL.gentle?' · gentler version':''}</p>${PL.x.session && PL.x.session.tempo ? '<p class="note" style="margin:4px 0 0">🐢 Tempo week: lower slowly for 3 seconds</p>' : ''}
     ${muscleBlock([s.id], 132)}
     ${lastStr ? `<p class="note" style="margin:8px 0 0">Last time: ${esc(lastStr)}</p>` : ''}
     ${sug ? `<div class="suggest">${sug.up?'📈':'💡'} ${esc(sug.msg)}</div>` : ''}
-    <div class="setrow">${ex.w ? `<span></span><label><input id="w" inputmode="decimal" value="${w0}" aria-label="Weight in kg"><small>kg</small></label>` : '<span></span><span></span>'}<label><input id="r" inputmode="numeric" value="${r0}" aria-label="Reps"><small>reps</small></label></div>
+    <div class="setrow">${ex.w ? `<span></span><label><input id="w" inputmode="decimal" value="${w0}" aria-label="Weight in kg"><small>kg</small></label>` : '<span></span><span></span>'}<label><input id="r" inputmode="numeric" value="${r0}" aria-label="Reps"><small>${/each/.test(String(s.reps)) || (ex.side && !ex.alt) ? 'reps per side' : ex.alt ? 'total reps' : 'reps'}</small></label></div>
     <button class="btn wide" id="setDone" type="button" style="margin-top:14px;padding:15px">✓ Done set</button></div>
     <h2>Up next</h2><div class="card">${upNext(PL.i+1)}</div></div>`;
-  if(s.round===1 && !(PL.steps[PL.i-1] && PL.steps[PL.i-1].id===s.id)) say(PL.i>0 ? 'Next up...' : null, ex.v, sug ? sug.clip : null);
-  if(s.round===s.sets && s.sets>1) say('Last set!');
+  const prevStep = PL.steps[PL.i-1], changed = !(prevStep && prevStep.id===s.id && prevStep.type!=='timed');
+  if(changed) say(PL.i>0 ? 'Next up...' : null, ex.v, sug ? sug.clip : null);
+  if(s.round===s.sets && s.sets>1 && (changed || !s.ss)) say('Last set!');
   $('#setDone').onclick = () => { const w = ex.w ? +String($('#w').value).replace(',','.') || 0 : 0, r = +$('#r').value || 0;
-    (PL.sets[s.id] = PL.sets[s.id] || []).push({w, r});
+    (PL.sets[s.id] = PL.sets[s.id] || []).push({w, r}); (PL.logged = PL.logged || {})[PL.i] = true;
     if(ex.w && w > pb(s.id) && pb(s.id) > 0){ say('New personal best! Well done.'); toast('New personal best! 🎉'); }
     advance(s); };
 }
 function advance(s){
+  (PL.hist = PL.hist || []).push(PL.i);
   PL.i++;
   const next = PL.steps[PL.i];
   if(!next) return drawStep();
   if(s.rest > 0 && !s.warm) return restScreen(s.rest, next);
-  if(s.ss && next.block===s.block) say("That's your superset. Straight into the next one.");
   drawStep();
 }
 function restScreen(secs, next){
@@ -317,20 +374,23 @@ function restScreen(secs, next){
   $('#player').innerHTML = `<div class="in">${header(title)}<div class="rest"><p class="kicker" style="opacity:.8">Rest</p><div class="clock" id="clk">${fmt(left)}</div><p style="margin:0 0 14px">Next: <b>${esc(nameOf(next.id))}</b>${next.type==='set'?` · set ${next.round} of ${next.sets}`:''}</p>
     <div class="row" style="justify-content:center"><button class="btn soft" id="plus" type="button" style="color:inherit">+15 s</button><button class="btn soft" id="skip" type="button" style="color:inherit">Skip rest</button></div></div>
     <p class="note" style="text-align:center;margin-top:12px">Take a sip of water 💧</p></div>`;
-  plTimer = setInterval(() => { left--; $('#clk').textContent = fmt(left); if(left===5) say('Five seconds left.'); if(left<=0){ clearInterval(plTimer); drawStep(); } }, 1000);
-  $('#plus').onclick = () => { left += 15; $('#clk').textContent = fmt(left); };
+  const cd = countdown(secs, n => { $('#clk').textContent = fmt(n); if(n===3) say('Three. Two. One. Go!'); }, () => drawStep());
+  $('#plus').onclick = () => cd.add(15);
   $('#skip').onclick = () => { clearInterval(plTimer); drawStep(); };
 }
 async function finishStrength(){
-  PL.finished = true; say('Workout complete! Amazing work.');
+  PL.finished = true; say(PL.steps.some(x=>x.cool) ? 'Slowly come out of the stretch.' : null, 'Workout complete! Amazing work.');
   const mins = Math.round((Date.now()-PL.started)/60000), x = PL.x;
   const list = Object.entries(PL.sets).filter(([id,ss]) => P.EX[id] && P.EX[id].w && ss.some(x=>x.w)).map(([id,ss]) => `<div class="item" style="padding:8px 0"><span class="ic c-pink" style="width:32px;height:32px;font-size:15px">🏋️</span><span><b style="font-size:14.5px">${esc(P.EX[id].n)}</b><span class="s">${ss.map(s=>(s.w?s.w+' kg × ':'')+s.r+(s.w?'':' reps')).join(', ')}</span></span><span></span></div>`).join('');
   $('#player').innerHTML = `<div class="in"><div class="bar"><span></span><b>All done!</b><span></span></div><div class="tint c-lime" style="margin-top:14px;text-align:center"><p style="font-size:44px;margin:0">🎉</p><p class="big">${esc(x.title)} complete</p><p class="muted">About ${mins} minutes. Proud of you for showing up today.</p></div>
     ${list ? `<h2>Your weights</h2><div class="card">${list}</div>` : ''}
     <div class="stack" style="margin-top:16px"><button class="btn wide" id="saveW" type="button" style="padding:15px">Save workout</button><button class="btn line wide" id="saveFin" type="button">Save and add a finisher</button></div></div>`;
-  const save = async () => { await saveLog({kind:'strength', title:x.title, planKey:x.key, program:x.program, week:x.week, gentle:!!PL.gentle, sets:PL.sets, mins}); toast('Saved! 💪'); };
-  $('#saveW').onclick = async () => { await save(); closePlayer(); };
-  $('#saveFin').onclick = async () => { await save(); closePlayer(); finisherSheet('pick'); };
+  let saved = false;
+  const save = btn => { if(saved) return true; saved = true; ['#saveW','#saveFin'].forEach(sel => { const b = $(sel); if(b){ b.disabled = true; } }); btn.textContent = 'Saving…';
+    try{ saveLog({kind:'strength', title:x.title, planKey:x.key, program:x.program, week:x.week, gentle:!!PL.gentle, sets:PL.sets, mins}); toast('Saved! 💪'); return true; }
+    catch(e){ saved = false; ['#saveW','#saveFin'].forEach(sel => { const b = $(sel); if(b) b.disabled = false; }); btn.textContent = 'Try again'; toast('Couldn’t save. Please try again.'); return false; } };
+  $('#saveW').onclick = e => { if(save(e.currentTarget)) closePlayer(); };
+  $('#saveFin').onclick = e => { if(save(e.currentTarget)){ closePlayer(); finisherSheet('pick'); } };
 }
 
 /* ---------- Finishers ---------- */
@@ -345,7 +405,7 @@ function startFinisher(f, mins){
   const gentle = periodWeek() && periodWeek().mode!=='none';
   const ints = P.finisherIntervals(f, mins).map(s => ({...s, id: swap(s.id, gentle)}));
   PL = {kind:'finisher', f, mins, steps: ints, i:0, x:{title:f.name}};
-  openPlayer(); say(P.FINISHER_CLIP[f.id]); drawInterval(false);
+  openPlayer(); say(P.FINISHER_CLIP[f.id]); PL.leadIn = true; drawInterval(false);
 }
 function drawInterval(resting){
   clearInterval(plTimer);
@@ -353,17 +413,19 @@ function drawInterval(resting){
   let left = resting ? s.rest : s.secs; const nx = resting ? PL.steps[PL.i+1] : null;
   if(resting && !nx){ PL.i++; return drawInterval(false); }
   const show = resting ? nx : s;
-  $('#player').innerHTML = `<div class="in">${header(PL.f.name)}<div class="${resting?'rest':'now c-'+PL.f.c}"><div class="row" style="justify-content:space-between"><span class="kicker">${resting?'Rest · next up':'Go!'}</span>${resting?'':watchLink(s.id)}</div><p class="name">${esc(nameOf(show.id))}</p>${resting?'':muscleBlock([s.id], 120)}<div class="clock" id="clk">${fmt(left)}</div>
+  $('#player').innerHTML = `<div class="in">${header(PL.f.name)}<div class="${resting?'rest':'now c-'+PL.f.c}"><div class="row" style="justify-content:space-between"><span class="kicker">${resting?'Rest · next up':'Go!'}</span>${resting?'':watchLink(s.id)}</div><p class="name">${esc(nameOf(show.id))}</p><div class="row" style="margin:4px 0">${gearChip(show.id)}</div>${resting?'':muscleBlock([s.id], 120)}<div class="clock" id="clk">${fmt(left)}</div>
     <div class="row" style="justify-content:center"><button class="btn soft" id="pause" type="button" style="color:inherit">⏸ Pause</button><button class="btn soft" id="skip" type="button" style="color:inherit">Skip</button></div></div></div>`;
-  if(resting) say('Next up...', P.EX[nx.id].v); else say(P.EX[s.id].v, 'Three. Two. One. Go!');
-  let paused = false;
-  plTimer = setInterval(() => { if(paused) return; left--; $('#clk').textContent = fmt(left); if(!resting && left===10) say('Ten seconds left.'); if(left<=0){ clearInterval(plTimer); if(resting){ PL.i++; drawInterval(false); } else { say('Three. Two. One. And rest.'); drawInterval(true); } } }, 1000);
-  $('#pause').onclick = () => { paused = !paused; $('#pause').textContent = paused ? '▶ Resume' : '⏸ Pause'; };
+  let cd = null;
+  const run = () => cd = countdown(left, n => { $('#clk').textContent = fmt(n); if(!resting && n===10) say('Ten seconds left.'); }, () => { if(resting){ PL.i++; drawInterval(false); } else { say('Three. Two. One. And rest.'); drawInterval(true); } });
+  $('#pause').onclick = () => { if(!cd) return; if(cd.paused){ cd.resume(); $('#pause').textContent = '⏸ Pause'; } else { cd.pause(); $('#pause').textContent = '▶ Resume'; } };
   $('#skip').onclick = () => { clearInterval(plTimer); if(resting){ PL.i++; drawInterval(false); } else drawInterval(true); };
+  if(resting){ say('Next up...', P.EX[nx.id].v); run(); }
+  else if(PL.leadIn){ PL.leadIn = false; leadIn($('#clk'), 'Get ready', [P.EX[s.id].v, 'Three. Two. One. Go!'], () => { $('#clk').textContent = fmt(left); run(); }, 4); }
+  else { say(P.EX[s.id].v, 'Three. Two. One. Go!'); run(); }
 }
 function finishSimple(kind, title, mins, planKey){
   $('#player').innerHTML = `<div class="in"><div class="tint c-lime" style="margin-top:30px;text-align:center"><p style="font-size:44px;margin:0">✨</p><p class="big">${esc(title)} done</p><p class="muted">${mins} minutes. Great job!</p></div><button class="btn wide" id="saveS" type="button" style="margin-top:16px;padding:15px">Save</button><button class="btn line wide" type="button" data-pclose style="margin-top:10px">Close without saving</button></div>`;
-  $('#saveS').onclick = async () => { await saveLog({kind, title, mins, planKey: planKey||null}); toast('Saved! ✨'); closePlayer(); };
+  $('#saveS').onclick = () => { saveLog({kind, title, mins, planKey: planKey||null}); toast('Saved! ✨'); closePlayer(); };
 }
 
 /* ---------- Stretches ---------- */
@@ -371,7 +433,7 @@ function startStretch(rid, key){
   const r = P.ROUTINES[rid], steps = [];
   r.list.forEach(([id, s]) => { if(P.STRETCH[id].side){ steps.push({id, secs:s, side:'Left side'}); steps.push({id, secs:s, side:'Right side', switch:1}); } else steps.push({id, secs:s}); });
   PL = {kind:'stretch', r, rid, key, steps, i:0, x:{title:r.name}};
-  openPlayer(); say("Let's stretch."); drawStretch();
+  openPlayer(); say("Let's stretch."); PL.leadIn = true; drawStretch();
 }
 function drawStretch(){
   clearInterval(plTimer);
@@ -380,10 +442,14 @@ function drawStretch(){
   let left = s.secs, paused = false;
   $('#player').innerHTML = `<div class="in">${header(PL.r.name)}<div class="now c-${PL.rid==='night'?'lilac':'sky'}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.side||'Hold'}</span>${watchLink(s.id)}</div><p class="name">${esc(P.STRETCH[s.id].n)}</p><div class="clock" id="clk">${fmt(left)}</div>
     <div class="row" style="justify-content:center"><button class="btn soft" id="pause" type="button">⏸ Pause</button><button class="btn soft" id="skip" type="button">Next</button></div></div><h2>Up next</h2><div class="card">${PL.steps.slice(PL.i+1,PL.i+4).map(n=>`<div class="item" style="padding:8px 0"><span class="ic" style="width:32px;height:32px;font-size:15px;background:var(--line)">🌿</span><span><b style="font-size:14.5px">${esc(P.STRETCH[n.id].n)}</b><span class="s">${n.side||''} ${n.secs} s</span></span><span></span></div>`).join('')}</div></div>`;
-  say(s.switch ? 'Gently switch sides.' : PL.i===0 ? null : (PL.i%3===0 ? 'Breathe into it.' : 'Hold this stretch.'));
-  plTimer = setInterval(() => { if(paused) return; left--; $('#clk').textContent = fmt(left); if(left===Math.floor(s.secs/2) && s.secs>=50) say('Relax a little deeper.'); if(left<=0){ clearInterval(plTimer); PL.i++; drawStretch(); } }, 1000);
-  $('#pause').onclick = () => { paused = !paused; $('#pause').textContent = paused ? '▶ Resume' : '⏸ Pause'; };
+  let cd = null;
+  const run = () => cd = countdown(left, n => { $('#clk').textContent = fmt(n); if(n===Math.floor(s.secs/2) && s.secs>=50) say('Relax a little deeper.'); }, () => { PL.i++; drawStretch(); });
+  $('#pause').onclick = () => { if(!cd) return; if(cd.paused){ cd.resume(); $('#pause').textContent = '⏸ Pause'; } else { cd.pause(); $('#pause').textContent = '▶ Resume'; } };
   $('#skip').onclick = () => { clearInterval(plTimer); PL.i++; drawStretch(); };
+  const clk = $('#clk'), go = () => { clk.textContent = fmt(left); run(); };
+  if(PL.leadIn){ PL.leadIn = false; leadIn(clk, 'Get into position', null, go, 5); }
+  else if(s.switch){ leadIn(clk, 'Switch sides', 'Gently switch sides.', go, 3); }
+  else { say(PL.i%3===0 ? 'Breathe into it.' : 'Hold this stretch.'); go(); }
 }
 
 /* ---------- Runs ---------- */
@@ -423,7 +489,7 @@ function runLogSheet(key, mins){
   const doIt = body => { let knee = 'good';
     body.querySelectorAll('[data-knee]').forEach(b => b.onclick = () => { knee = b.dataset.knee; body.querySelectorAll('[data-knee]').forEach(x=>x.setAttribute('aria-pressed', String(x===b))); body.querySelector('#kneeNote').textContent = knee==='good' ? 'Next run grows a little. 🎉' : knee==='niggly' ? 'Next run stays the same distance. 💛' : 'Next run stays the same. If it keeps hurting, see a physio or GP.'; });
     body.querySelector('#saveRun').onclick = async () => { const km = +String(body.querySelector('#rk').value).replace(',','.') || 0, m = +body.querySelector('#rm').value || 0;
-      await saveLog({kind:'run', title:'Run', km, mins:m, knee, planKey:key||null}); if(km && m) local.set('pace', Math.max(5, Math.min(12, m/km)));
+      saveLog({kind:'run', title:'Run', km, mins:m, knee, planKey:key||null}); if(km && m) local.set('pace', Math.max(5, Math.min(12, m/km)));
       toast('Run saved! 🏃‍♀️'); if(!$('#player').hidden) closePlayer(); else closeSheet(); };
   };
   if(!$('#player').hidden){ $('#player').innerHTML = `<div class="in"><div class="bar"><span></span><b>Run complete 🎉</b><span></span></div><div class="card" style="margin-top:14px">${html}</div><button class="btn line wide" type="button" data-pclose style="margin-top:10px">Close without saving</button></div>`; doIt($('#player')); }
@@ -452,7 +518,7 @@ function manualSheet(){
     body.querySelector('#ownSave').onclick = async () => {
       const title = body.querySelector('#mt').value.trim() || type, date = body.querySelector('#md').value || TODAY(), mins = +body.querySelector('#mm').value || 0, km = +String(body.querySelector('#mk').value).replace(',','.') || 0, link = body.querySelector('#ml').value.trim(), pk = body.querySelector('#mp').value;
       const kind = type==='Run' ? 'run' : 'manual';
-      await saveLog({kind, title: kind==='run' ? 'Run' : title, type: type.toLowerCase(), date, mins, km: km||null, link: link||null, planKey: date===TODAY() ? (pk||null) : null, manual:true});
+      saveLog({kind, title: kind==='run' ? 'Run' : title, type: type.toLowerCase(), date, mins, km: km||null, link: link||null, planKey: date===TODAY() ? (pk||null) : null, manual:true});
       closeSheet(); toast('Logged! It counts towards your week ✨');
     };
   });
@@ -473,7 +539,7 @@ function renderPrograms(){
 }
 function programSheet(id){
   const p = P.program(id), mon = thisWeek(), nextMon = P.addDays(mon, 7), sch = {...P.DEFAULT_SCHEDULE, ...(S.schedule||{})};
-  const dayHTML = slot => { const d = p.days[slot]; return `<div class="card" style="margin-top:10px"><p class="kicker muted">${P.DAY_NAMES[sch[slot]]}</p><p style="font-weight:800;font-size:17px;margin:2px 0 6px">${esc(d.title)}</p>${muscleBlock(sessionIds(d), 120)}${d.ex.map(b => (b.ss||[b]).map((x,k) => `<div class="item" style="padding:7px 0"><span class="ic" style="width:30px;height:30px;font-size:13px;background:var(--line)">${b.ss?(k?'↳':'SS'):'•'}</span><span><b style="font-size:14.5px">${esc(P.EX[x.id].n)}</b><span class="s">${x.sets} × ${esc(x.reps)}</span></span><a class="link" style="font-size:13px" href="${P.yt(P.EX[x.id].q)}" target="_blank" rel="noopener">Watch</a></div>`).join('')).join('')}</div>`; };
+  const dayHTML = slot => { const d = p.days[slot]; return `<div class="card" style="margin-top:10px"><p class="kicker muted">${P.DAY_NAMES[sch[slot]]}</p><p style="font-weight:800;font-size:17px;margin:2px 0 6px">${esc(d.title)}</p>${muscleBlock(sessionIds(d), 120)}${d.ex.map(b => (b.ss||[b]).map((x,k) => `<div class="item" style="padding:7px 0"><span class="ic" style="width:30px;height:30px;font-size:13px;background:var(--line)">${b.ss?(k?'↳':'SS'):'•'}</span><span><b style="font-size:14.5px">${esc(P.EX[x.id].n)}</b><span class="s">${x.sets} sets · ${esc(P.repsLabel(x.id, x.reps))} · ${esc(P.gear(x.id))}</span></span><a class="link" style="font-size:13px" href="${P.yt(P.EX[x.id].q)}" target="_blank" rel="noopener">Watch</a></div>`).join('')).join('')}</div>`; };
   const isCur = S.program===id;
   openSheet(`${p.e} ${p.name}`, `<p class="muted" style="margin-top:0">${esc(p.blurb)}</p><div class="row"><span class="chip" style="background:var(--card)">${p.weeks} week${p.weeks>1?'s':''}</span><span class="chip" style="background:var(--card)">${esc(p.level)}</span><span class="chip" style="background:var(--card)">3 sessions a week</span></div>
     ${['A','B','C'].map(dayHTML).join('')}
@@ -510,7 +576,7 @@ function renderRun(){
 function renderStretch(){
   const r = P.ROUTINES, card = (k, c, extra) => `<div class="tint c-${c}" style="margin-top:12px"><p class="kicker">${extra}</p><p class="big">${r[k].e} ${esc(r[k].name)}</p><p class="muted" style="margin:0 0 10px">${r[k].list.map(([id])=>P.STRETCH[id].n).slice(0,5).join(' · ')}…</p><button class="btn" type="button" data-stretch="${k}" data-key="${k==='night'?'night':k==='deep'?'deep':''}">▶ Start · ${r[k].mins} min</button></div>`;
   $('#v-stretch').innerHTML = `<h1>Stretch 🌿</h1><p class="sub">Every night before bed, plus a deep stretch twice a week.</p>
-    ${card('night','lilac', isDone(TODAY(),'night') ? 'Tonight · done ✓' : 'Tonight')}${card('deep','sky', `${deepThisWeek()} of 2 this week`)}${card('post','mint','After a run')}
+    ${card('night','lilac', isDone(TODAY(),'night') ? 'Tonight · done ✓' : 'Tonight')}${card('deep','sky', `${deepThisWeek()} of 2 this week`)}${card('post','mint','After a run')}${card('roll','peach','Before your deep stretch, or any time')}
     <h2>All stretches</h2><div class="card">${Object.entries(P.STRETCH).map(([id,s])=>`<div class="item" style="padding:8px 0"><span class="ic" style="width:32px;height:32px;font-size:14px;background:var(--line)">🌿</span><span><b style="font-size:14.5px">${esc(s.n)}</b>${s.side?'<span class="s">each side</span>':''}</span><a class="link" style="font-size:13px" href="${P.yt(s.q)}" target="_blank" rel="noopener">Watch how</a></div>`).join('')}</div>`;
 }
 
@@ -519,7 +585,7 @@ function renderStretch(){
    ===================================================================== */
 const SYMPTOMS = ['Cramps','Backache','Headache','Bloating','Tired','Low mood','Great energy'];
 function renderCycle(){
-  const st = P.cycleStats(periods), date = TODAY(), day = P.cycleDay(st, date), ph = P.phase(st, day), open = periods.find(p => !p.ended && date >= p.start && date <= P.addDays(p.start, 9));
+  const st = P.cycleStats(periods), date = TODAY(), day = P.cycleDay(st, date), ph = P.phase(st, day), open = periods.find(p => !p.ended && date >= p.start);
   const petal = (k) => `<svg width="18" height="18" viewBox="-10 -10 20 20" aria-hidden="true" style="transform:rotate(${k%2?45:0}deg)"><ellipse rx="3" ry="9" fill="${k%2?'var(--u-rose)':'var(--u-green)'}"/><ellipse rx="9" ry="3" fill="${k%2?'var(--u-rose)':'var(--u-green)'}"/><circle r="2.2" fill="var(--bg)"/></svg>`;
   let html = `<div class="petals">${Array.from({length:12},(_,k)=>petal(k)).join('')}</div><div class="cyc"><span class="mark" aria-hidden="true">cy<br>cle</span><p style="margin:0;font-weight:600">${esc((user.displayName||'').split(' ')[0] || 'Hi')}, today is</p>
     <p style="font-size:clamp(24px,7vw,30px);font-weight:500;margin:4px 0 6px;max-width:72%;line-height:1.15">${day ? `Day ${day} · <b>${esc(ph.n)}</b>` : 'No cycle logged yet'}</p><p style="margin:0 0 14px;max-width:80%">${ph ? esc(ph.note) : ''}</p>
@@ -537,18 +603,40 @@ function renderCycle(){
   if(todayS.length) html += `<p class="note" style="margin-top:10px">Today: ${todayS.map(esc).join(', ')}</p>`;
   // recent cycles
   const ps = periods.slice().sort((a,b)=>a.start<b.start?1:-1).slice(0,6);
-  html += `<h2>Recent cycles</h2><div class="card">${ps.map((p,i) => { const nxt = ps[i-1], len = nxt ? Math.round((P.parse(nxt.start)-P.parse(p.start))/864e5) : null; return `<div class="item" style="grid-template-columns:90px 1fr auto;padding:9px 0"><span class="note" style="font-weight:700;color:var(--ink)">${P.parse(p.start).getDate()} ${F.MONTHS[P.parse(p.start).getMonth()].slice(0,3)}</span><span style="height:10px;border-radius:999px;background:linear-gradient(90deg,var(--u-rose) 0 ${Math.round((p.days||5)/31*100)}%,var(--u-cream) 0)"></span><span class="note">${len ? len+' days' : 'current'}</span></div>`; }).join('') || '<p class="empty">No cycles yet.</p>'}</div>`;
-  html += `<div class="card" style="margin-top:12px;background:var(--u-cream)"><b>Your patterns</b><p class="note" style="margin:6px 0 0;color:var(--ink)">From your Flo history: cramps and backache in the first couple of days, and tiredness and headaches in the last few days before a period. The app keeps those days a bit gentler when you ask it to.</p></div>
+  html += `<h2>Recent cycles</h2><div class="card">${ps.map((p,i) => { const nxt = ps[i-1], len = nxt ? Math.round((P.parse(nxt.start)-P.parse(p.start))/864e5) : null; return `<button type="button" class="item" data-editcycle="${esc(p.id)}" style="grid-template-columns:90px 1fr auto;padding:9px 0;width:100%;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;color:inherit" aria-label="Edit the period that started ${esc(p.start)}"><span class="note" style="font-weight:700;color:var(--ink)">${P.parse(p.start).getDate()} ${F.MONTHS[P.parse(p.start).getMonth()].slice(0,3)}</span><span style="height:10px;border-radius:999px;background:linear-gradient(90deg,var(--u-rose) 0 ${Math.round((p.days||5)/31*100)}%,var(--u-cream) 0)"></span><span class="note">${p.days||5} days${p.assumed?' (assumed)':''} · ${len ? len+'-day cycle' : 'current'} ›</span></button>`; }).join('') || '<p class="empty">No cycles yet.</p>'}</div>`;
+  html += `<p class="note" style="margin-top:6px">Tap a cycle to change its dates or length.</p><div class="card" style="margin-top:12px;background:var(--u-cream)"><b>Your patterns</b><p class="note" style="margin:6px 0 0;color:var(--ink)">From your Flo history: cramps and backache in the first couple of days, and tiredness and headaches in the last few days before a period. The app keeps those days a bit gentler when you ask it to.</p></div>
     <p class="note" style="margin-top:12px">🔒 Only you can see this. Predictions are estimates from your past cycles, not medical advice.</p>`;
   if(!periods.length) html += `<div class="card" style="margin-top:12px"><b>Bring in your Flo history?</b><p class="note" style="margin:6px 0 10px;color:var(--ink)">Adds the 6 cycles from your Flo report (June to November 2026), so predictions work straight away.</p><button class="cbtn" id="floGo" type="button">Add my Flo history</button></div>`;
   $('#v-cycle').innerHTML = html;
   const fg = $('#floGo'); if(fg) fg.onclick = async () => { for(const p of P.FLO_HISTORY) await F.put('~move_cycle', {id:'p'+p.start, start:p.start, days:p.days, ended:true, from:'Flo'}); toast('Flo history added 🌸'); };
   const sB = $('#pStart'); if(sB) sB.onclick = () => openSheet('Period started', `<label class="l" for="pd">When did it start?</label><input class="f" id="pd" type="date" value="${date}" max="${date}"><button class="btn wide" id="pOk" type="button" style="margin-top:14px">Save</button>`, body => {
     body.querySelector('#pOk').onclick = async () => { const d = body.querySelector('#pd').value || date; await F.put('~move_cycle', {id:'p'+d, start:d, days:st.plen}); closeSheet(); if(P.monday(d)===thisWeek()) feelingSheet(d); else toast('Saved 🌸'); }; });
-  const eB = $('#pEnd'); if(eB) eB.onclick = async () => { const days = Math.round((P.parse(date)-P.parse(open.start))/864e5)+1; await F.patch('~move_cycle', open.id, {days, ended:true}); toast('Saved 🌸'); };
+  const eB = $('#pEnd'); if(eB) eB.onclick = async () => { const days = Math.round((P.parse(date)-P.parse(open.start))/864e5)+1; await F.patch('~move_cycle', open.id, {days, ended:true, assumed:false}); toast('Saved 🌸'); };
   $('#symBtn').onclick = () => openSheet('How are you feeling today?', `<div class="chips">${SYMPTOMS.map(s=>`<button class="chip" type="button" data-sym="${esc(s)}" aria-pressed="${todayS.includes(s)}">${esc(s)}</button>`).join('')}</div><button class="btn wide" id="symOk" type="button" style="margin-top:16px">Save</button>`, body => {
     body.querySelectorAll('[data-sym]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed')!=='true')));
     body.querySelector('#symOk').onclick = async () => { const list = [...body.querySelectorAll('[data-sym][aria-pressed="true"]')].map(b=>b.dataset.sym); await F.put('~move_symptoms', {id:date, list}); closeSheet(); toast('Saved 🌸'); }; });
+}
+// If "Period ended" wasn't tapped, assume it finished after the usual length (from past cycles).
+function autoEndPeriods(){
+  const st = P.cycleStats(periods.filter(p => p.ended)), usual = st.plen || 5, today = TODAY();
+  periods.filter(p => !p.ended && P.addDays(p.start, usual) <= today).forEach(p => {
+    p.ended = true; p.days = usual; p.assumed = true;
+    F.patch('~move_cycle', p.id, {ended:true, days:usual, assumed:true}).catch(()=>{});
+  });
+}
+function editCycleSheet(id){
+  const p = periods.find(x => x.id===id); if(!p) return;
+  openSheet('Edit this period', `<label class="l" for="ec-s">Started on</label><input class="f" id="ec-s" type="date" value="${p.start}" max="${TODAY()}">
+    <label class="l" for="ec-d">How many days did it last?</label><input class="f" id="ec-d" inputmode="numeric" value="${p.days||5}">
+    ${p.assumed ? '<p class="note" style="margin-top:8px">This length was assumed from your usual cycle, because “Period ended” wasn’t tapped.</p>' : ''}
+    <div class="stack" style="margin-top:16px"><button class="btn wide" id="ec-ok" type="button">Save</button><button class="btn line wide" id="ec-del" type="button">Delete this period</button></div>`, body => {
+    body.querySelector('#ec-ok').onclick = async () => {
+      const start = body.querySelector('#ec-s').value || p.start, days = Math.max(1, Math.min(15, +body.querySelector('#ec-d').value || 5));
+      if(start !== p.start){ await F.remove('~move_cycle', p.id); await F.put('~move_cycle', {id:'p'+start, start, days, ended:true}); }
+      else await F.put('~move_cycle', {id:p.id, start, days, ended:true});
+      closeSheet(); toast('Saved 🌸'); };
+    body.querySelector('#ec-del').onclick = async () => { if(confirm('Delete this period?')){ await F.remove('~move_cycle', p.id); closeSheet(); toast('Deleted'); } };
+  });
 }
 function feelingSheet(from){
   openSheet('How are you feeling today?', `<p class="muted" style="margin-top:0">Your choice only changes the rest of this week. Next Monday carries on with the next week of your program, with no catch-up.</p>
@@ -603,12 +691,16 @@ function settingsSheet(){
     <p class="note">Only changes your own app. Cycle data is always private to you.</p>
     <h2>Sound</h2><div class="chips"><button class="chip" type="button" id="vOn" aria-pressed="${voiceOn()}">🔊 Trainer voice ${voiceOn()?'on':'off'}</button></div>
     <p class="note">Plays over your music. On newer iPhones your music should dip for each prompt.</p>
+    <details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">🎧 Check the trainer voice</summary>
+      <p class="note">Tap a phrase to hear it. If any say something different from the words shown, tell Claude which ones.</p>
+      <div class="stack" style="gap:6px;margin-top:8px">${Object.keys(VOICE).map((l,i)=>`<button type="button" class="chip" data-vcheck="${i}" style="justify-content:flex-start;text-align:left;border:0">▶ ${esc(l)}</button>`).join('')}</div></details>
     <h2>Account</h2><p class="note">Signed in as ${esc(user.email)}. 🔒 Your workouts and cycle are private to you.</p><button class="btn line" id="out" type="button">Sign out</button>`, async body => {
     body.querySelectorAll('[data-deep]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed')!=='true')));
     body.querySelector('#schSave').onclick = async () => { const g = k => +body.querySelector('#s-'+k).value;
       await metaSave({schedule:{A:g('A'),B:g('B'),C:g('C'),run:g('run'),runOpt:g('runOpt'),deep:[...body.querySelectorAll('[data-deep][aria-pressed="true"]')].map(b=>+b.dataset.deep)}}); toast('Your week is saved ✓'); closeSheet(); };
     body.querySelector('#vOn').onclick = e => { local.set('voice', !voiceOn()); e.target.setAttribute('aria-pressed', String(voiceOn())); e.target.textContent = '🔊 Trainer voice '+(voiceOn()?'on':'off'); if(voiceOn()) say('Ready? Let\'s go.'); };
     body.querySelector('#out').onclick = () => F.logOut();
+    body.querySelectorAll('[data-vcheck]').forEach(b => b.onclick = () => { const l = Object.keys(VOICE)[+b.dataset.vcheck]; quiet(); const was = voiceOn(); local.set('voice', true); say(l); local.set('voice', was); });
     body.querySelectorAll('[data-look]').forEach(b => b.onclick = async () => { await metaSave({look:b.dataset.look}); settingsSheet(); });
     body.querySelector('#cycTog').onclick = async () => { await metaSave({cycle: !cycleOn()}); settingsSheet(); };
     const gc = body.querySelector('#gConnect'); if(gc) gc.onclick = () => connect(() => settingsSheet());
@@ -636,7 +728,7 @@ F.watchUser(u => {
   F.listen('~move_meta', rows => { S = rows.find(r=>r.id==='state') || {}; IMP = rows.find(r=>r.id==='import') || null; loaded.meta = 1;
     if(!S.appStart) metaSave({appStart: TODAY()}); render(); }, () => {});
   F.listen('~move_logs', rows => { logs = rows; loaded.logs = 1; render(); }, () => {});
-  F.listen('~move_cycle', rows => { periods = rows; loaded.cycle = 1; render(); }, () => {});
+  F.listen('~move_cycle', rows => { periods = rows; loaded.cycle = 1; autoEndPeriods(); render(); }, () => {});
   F.listen('~move_periodweek', rows => { pweeks = {}; rows.forEach(r => pweeks[r.id] = r); render(); }, () => {});
   F.listen('~move_symptoms', rows => { symptoms = {}; rows.forEach(r => symptoms[r.id] = r); }, () => {});
   F.loadStyle(u.email).then(st => { famLook = st==='green' ? 'dark' : 'light'; render(); }).catch(()=>{});

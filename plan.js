@@ -16,8 +16,8 @@ export const EX = {
   pulsesumo:{n:'Pulse sumo squats',v:'Pulse sumo squats.',q:'pulse sumo squat dumbbell',w:1},
   split:{n:'Split squats',v:'Split squats.',q:'dumbbell split squat form',w:1,side:1},
   bulgarian:{n:'Bulgarian split squats',v:'Bulgarian split squats.',q:'dumbbell bulgarian split squat form',w:1,side:1,low:'split'},
-  rlunge:{n:'Reverse lunges',v:'Reverse lunges.',q:'dumbbell reverse lunge form',w:1},
-  wlunge:{n:'Walking lunges',v:'Walking lunges.',q:'dumbbell walking lunges form',w:1},
+  rlunge:{alt:1,n:'Reverse lunges',v:'Reverse lunges.',q:'dumbbell reverse lunge form',w:1},
+  wlunge:{alt:1,n:'Walking lunges',v:'Walking lunges.',q:'dumbbell walking lunges form',w:1},
   curtsy:{n:'Curtsy lunges',v:'Curtsy lunges.',q:'curtsy lunge form',w:1},
   rdl:{n:'Romanian deadlifts',v:'Romanian deadlifts.',q:'dumbbell romanian deadlift form',w:1},
   sumodl:{n:'Sumo deadlifts',v:'Sumo deadlifts.',q:'dumbbell sumo deadlift form',w:1},
@@ -49,21 +49,53 @@ export const EX = {
   pullapart:{n:'Band pull-aparts',v:'Band pull-aparts.',q:'band pull apart form'},
   plank:{n:'Plank',v:'Plank.',q:'forearm plank proper form'},
   sideplank:{n:'Side plank',v:'Side plank.',q:'side plank form',side:1},
-  deadbug:{n:'Dead bugs',v:'Dead bugs.',q:'dead bug exercise form'},
-  birddog:{n:'Bird dogs',v:'Bird dogs.',q:'bird dog exercise form'},
-  bicycle:{n:'Bicycle crunches',v:'Bicycle crunches.',q:'bicycle crunches form'},
-  russian:{n:'Russian twists',v:'Russian twists.',q:'russian twist form'},
+  deadbug:{alt:1,n:'Dead bugs',v:'Dead bugs.',q:'dead bug exercise form'},
+  birddog:{alt:1,n:'Bird dogs',v:'Bird dogs.',q:'bird dog exercise form'},
+  bicycle:{alt:1,n:'Bicycle crunches',v:'Bicycle crunches.',q:'bicycle crunches form'},
+  russian:{alt:1,n:'Russian twists',v:'Russian twists.',q:'russian twist form'},
   legraise:{n:'Leg raises',v:'Leg raises.',q:'lying leg raises form'},
-  climber:{n:'Mountain climbers',v:'Mountain climbers.',q:'mountain climbers form',low:'deadbug'},
-  flutter:{n:'Flutter kicks',v:'Flutter kicks.',q:'flutter kicks abs form'},
-  heeltap:{n:'Heel taps',v:'Heel taps.',q:'heel taps abs exercise'},
+  climber:{alt:1,n:'Mountain climbers',v:'Mountain climbers.',q:'mountain climbers form',low:'deadbug'},
+  flutter:{alt:1,n:'Flutter kicks',v:'Flutter kicks.',q:'flutter kicks abs form'},
+  heeltap:{alt:1,n:'Heel taps',v:'Heel taps.',q:'heel taps abs exercise'},
   jacks:{n:'Jumping jacks',v:'Jumping jacks.',q:'jumping jacks',low:'squat'},
-  knees:{n:'High knees',v:'High knees.',q:'high knees exercise',low:'calf'},
+  knees:{alt:1,n:'High knees',v:'High knees.',q:'high knees exercise',low:'calf'},
   squatjump:{n:'Squat jumps',v:'Squat jumps.',q:'squat jumps form',low:'squat'},
   burpee:{n:'Burpees',v:'Burpees.',q:'burpee proper form',low:'climber'},
   modburpee:{n:'Modified burpees',v:'Modified burpees.',q:'low impact modified burpee',low:'squat'},
-  skater:{n:'Skaters',v:'Skaters.',q:'skater jumps exercise',low:'curtsy'}
+  skater:{alt:1,n:'Skaters',v:'Skaters.',q:'skater jumps exercise',low:'curtsy'},
+  kbswing:{n:'Kettlebell swings',q:'kettlebell swing proper form',w:1,low:'kbdeadlift'},
+  kbdeadlift:{n:'Kettlebell deadlifts',q:'kettlebell deadlift form',w:1},
+  kbgoblet:{n:'Kettlebell goblet squats',v:'Goblet squats.',q:'kettlebell goblet squat form',w:1},
+  halo:{n:'Kettlebell halos',q:'kettlebell halo exercise',w:1},
+  kbrow:{n:'Kettlebell single-arm rows',v:'Single-arm rows.',q:'kettlebell single arm row',w:1,side:1},
+  kbpress:{n:'Kettlebell single-arm press',v:'Shoulder press.',q:'kettlebell single arm overhead press',w:1,side:1},
+  skip:{n:'Skipping',q:'jump rope basics',low:'knees'},
+  bandrow:{n:'Band rows',q:'resistance band row',},
+  bandkick:{n:'Banded kickbacks',v:'Donkey kicks.',q:'banded glute kickback',side:1},
+  bandsquat:{n:'Banded squats',v:'Squats.',q:'banded squat booty band'}
 };
+/* What you need for each exercise. Anything not listed: "Dumbbells" if it uses weights, else "Bodyweight". */
+export const GEAR = {
+  goblet:'One dumbbell', sumo:'One dumbbell', pulsesumo:'One dumbbell', split:'Dumbbells', bulgarian:'Dumbbells + bench',
+  rlunge:'Dumbbells', wlunge:'Dumbbells', curtsy:'Dumbbells (or bodyweight)', rdl:'Dumbbells', sumodl:'Dumbbells', sldl:'One or two dumbbells',
+  thrust:'Dumbbell + bench', bridge:'Bodyweight', slbridge:'Bodyweight', stepup:'Dumbbells + bench', calf:'Dumbbells',
+  bandwalk:'Booty band', clam:'Booty band', donkey:'Bodyweight (booty band to make it harder)', hydrant:'Bodyweight (booty band to make it harder)',
+  press:'Dumbbells (seated on the bench or standing)', lateral:'Dumbbells', front:'Dumbbells', row1:'Dumbbell + bench', row:'Dumbbells', renegade:'Dumbbells',
+  chest:'Dumbbells + bench (or the floor)', fly:'Dumbbells + bench (or the floor)', pushup:'Bodyweight', kpushup:'Bodyweight', curl:'Dumbbells', hammer:'Dumbbells',
+  kickback:'Dumbbells', dips:'Bench', overhead:'One dumbbell', pullapart:'Long band',
+  kbswing:'8 kg kettlebell', kbdeadlift:'8 kg kettlebell', kbgoblet:'8 kg kettlebell', halo:'8 kg kettlebell', kbrow:'8 kg kettlebell + bench', kbpress:'8 kg kettlebell',
+  skip:'Skipping rope', bandrow:'Long band', bandkick:'Booty band', bandsquat:'Booty band'
+};
+/* How the reps read on screen: "10 per side", "16 total, alternating (8 per side)", "30 s each side". */
+export function repsLabel(id, reps){
+  const r = String(reps), ex = EX[id] || {}, m = r.match(/(\d+)(?:\s*-\s*(\d+))?/), num = m ? (m[2] ? `${m[1]}–${m[2]}` : m[1]) : r;
+  if(/\d\s*s\b/.test(r)) return /each/.test(r) ? `${num} s each side` : `${num} s`;
+  if(/each/.test(r)) return `${num} per side${ex.alt ? ', alternating' : ''}`;
+  if(ex.alt){ const half = m && !m[2] ? ` (${Math.round(+m[1]/2)} per side)` : ''; return `${num} total, alternating${half}`; }
+  if(ex.side) return `${num} per side`;
+  return `${num} reps`;
+}
+export const gear = id => GEAR[id] || (EX[id] && EX[id].w ? 'Dumbbells' : 'Bodyweight');
 export const yt = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
 
 /* ---------- Building blocks ---------- */
@@ -160,6 +192,68 @@ export const PROGRAMS = [
 ];
 export const program = id => PROGRAMS.find(p=>p.id===id) || PROGRAMS[0];
 
+/* ---------- Variety ----------
+   Each program rotates through 4 different weeks, then repeats with a step up (round 2,
+   round 3…). Exercises swap for others that train the same muscles, so no two weeks in a
+   cycle are copies, while key lifts come back often enough to see progress. */
+export const ALT = {
+  goblet:['goblet','kbgoblet','sumo','bandsquat'], sumo:['sumo','pulsesumo','kbgoblet','goblet'], pulsesumo:['pulsesumo','sumo','bandsquat','goblet'],
+  squat:['squat','bandsquat','kbgoblet','sumo'], split:['split','rlunge','bulgarian','stepup'], bulgarian:['bulgarian','split','stepup','wlunge'],
+  rlunge:['rlunge','curtsy','split','wlunge'], wlunge:['wlunge','rlunge','curtsy','stepup'], curtsy:['curtsy','rlunge','skater','split'], stepup:['stepup','bulgarian','split','rlunge'],
+  rdl:['rdl','kbdeadlift','sldl','sumodl'], sldl:['sldl','rdl','kbdeadlift','sumodl'], sumodl:['sumodl','kbdeadlift','rdl','kbswing'], kbswing:['kbswing','sumodl','kbdeadlift','rdl'],
+  thrust:['thrust','slbridge','bridge','bandkick'], bridge:['bridge','slbridge','thrust','bandkick'], slbridge:['slbridge','bridge','bandkick','thrust'],
+  calf:['calf','skip','calf','knees'], bandwalk:['bandwalk','clam','hydrant','bandkick'], clam:['clam','bandwalk','hydrant','bandkick'],
+  donkey:['donkey','bandkick','hydrant','clam'], hydrant:['hydrant','donkey','clam','bandwalk'],
+  press:['press','kbpress','front','lateral'], lateral:['lateral','front','halo','press'], front:['front','lateral','halo','press'],
+  row1:['row1','kbrow','row','bandrow'], row:['row','row1','bandrow','kbrow'], renegade:['renegade','row1','kbrow','row'], bandrow:['bandrow','row','row1','pullapart'],
+  chest:['chest','pushup','fly','kpushup'], fly:['fly','chest','kpushup','pushup'], pushup:['pushup','kpushup','chest','fly'], kpushup:['kpushup','pushup','chest','fly'],
+  curl:['curl','hammer','curl','hammer'], hammer:['hammer','curl','hammer','curl'], kickback:['kickback','overhead','dips','kickback'], overhead:['overhead','kickback','dips','overhead'], dips:['dips','kickback','overhead','dips'],
+  pullapart:['pullapart','bandrow','halo','pullapart'],
+  plank:['plank','sideplank','climber','deadbug'], sideplank:['sideplank','plank','russian','heeltap'], deadbug:['deadbug','birddog','legraise','heeltap'], birddog:['birddog','deadbug','plank','bridge'],
+  bicycle:['bicycle','russian','heeltap','flutter'], russian:['russian','bicycle','halo','heeltap'], legraise:['legraise','flutter','deadbug','heeltap'], flutter:['flutter','legraise','bicycle','climber'], heeltap:['heeltap','bicycle','russian','deadbug'],
+  climber:['climber','skip','knees','jacks'], jacks:['jacks','skip','knees','climber'], knees:['knees','skip','jacks','climber'], squatjump:['squatjump','kbswing','skater','jacks'],
+  burpee:['burpee','modburpee','kbswing','climber'], modburpee:['modburpee','squatjump','kbswing','climber'], skater:['skater','curtsy','squatjump','skip']
+};
+const shift = (r, dLow, dHigh, dOne, dSecs, floor=5) => {
+  r = String(r);
+  if(/\d\s*s\b/.test(r)) return r.replace(/(\d+)\s*s/, (m,a) => `${Math.max(15, +a + dSecs)} s`);
+  if(/\d+\s*-\s*\d+/.test(r)) return r.replace(/(\d+)\s*-\s*(\d+)/, (m,a,b) => `${Math.max(floor,+a+dLow)}-${Math.max(floor+1,+b+dHigh)}`);
+  return r.replace(/^(\d+)/, (m,a) => String(Math.max(floor+1, +a + dOne)));
+};
+export const WEEK_STYLES = [
+  {name:'Foundation week', note:'Steady reps with control.', sets:0, reps:r => r},
+  {name:'Strength week', note:'A little heavier, fewer reps, longer rests.', sets:1, reps:r => shift(r,-2,-2,-2,0), rest:1.3},
+  {name:'Tempo week', note:'Lower slowly for 3 seconds on every rep.', sets:0, reps:r => r, tempo:true},
+  {name:'Pump week', note:'Lighter weights, more reps, shorter rests.', sets:0, reps:r => shift(r,2,3,3,10), rest:0.7}
+];
+const CARDIO = new Set(['skip','knees','jacks','climber']);
+const TIMED_OK = new Set(['plank','sideplank','climber','skip','knees','jacks','skater','flutter']);
+// Make the reps suit the exercise that was swapped in.
+function fitReps(id, reps, w){
+  const ex = EX[id] || {}; let r = String(reps); const timed = /\d\s*s\b/.test(r);
+  if(CARDIO.has(id)) return timed ? r.replace(/\s*each.*$/,'') : (w === 3 ? '40 s' : '30 s');
+  if(timed && !TIMED_OK.has(id)) return ex.side && !ex.alt ? '12 each' : ex.alt ? '16' : '12';
+  if(timed){ r = r.replace(/\s*each.*$/,''); if(id==='sideplank') r += ' each'; if(id==='plank') r = r.replace(/(\d+)/, (m,a)=>String(Math.max(30,+a))); return r; }
+  if(/each/.test(r) && !ex.side && !ex.alt) return r.replace(/\s*each.*$/,'');
+  return r;
+}
+function pick(id, w, used){
+  const alts = ALT[id] || [id];
+  for(let k=0; k<alts.length; k++){ const c = alts[(w + k) % alts.length]; if(!used.has(c)){ used.add(c); return c; } }
+  used.add(id); return id;
+}
+/* The session for a given program week: week 1 is the program as written; weeks 2–4 swap
+   in alternatives and change the style; from week 5 the cycle repeats with an extra set. */
+export function sessionFor(base, week){
+  const w = ((week-1) % 4 + 4) % 4, round = Math.floor((week-1) / 4) + 1, style = WEEK_STYLES[w], used = new Set();
+  const conv = it => { const id = w === 0 ? it.id : pick(it.id, w, used); if(w === 0) used.add(it.id);
+    const sets = Math.min(5, it.sets + style.sets + (round > 1 ? 1 : 0));
+    const reps = fitReps(id, style.reps(String(it.reps)), w);
+    return {...it, id, sets, reps, rest: Math.round((it.rest||60) * (style.rest||1) / 5) * 5}; };
+  const ex = base.ex.map(b => b.ss ? {ss: b.ss.map(conv)} : conv(b));
+  return {...base, ex, week, round, style: style.name, styleNote: style.note + (round > 1 ? ` Round ${round}: one extra set to step it up.` : ''), tempo: !!style.tempo};
+}
+
 // A gentler period-week session, used when she chooses "Pause this week"
 export const PERIOD_SESSION = {title:'Gentle Movement', warm:'core', gentle:true, ex:[
   E('bridge',2,'12',30), E('birddog',2,'8 each',30), E('clam',2,'12 each',30), E('deadbug',2,'8 each',30), E('sideplank',2,'15 s each',30) ]};
@@ -168,8 +262,8 @@ export const PERIOD_SESSION = {title:'Gentle Movement', warm:'core', gentle:true
 export const FINISHERS = [
   {id:'abs', e:'🔥', name:'Abs Burner', mins:[10,15], on:40, off:20, moves:['bicycle','legraise','plank','russian','heeltap','flutter','deadbug'], c:'pink'},
   {id:'glutes', e:'🍑', name:'Glute Finisher', mins:[10], on:40, off:20, moves:['donkey','hydrant','bridge','clam','bandwalk','slbridge'], c:'lilac'},
-  {id:'arms', e:'💪', name:'Arms & Shoulders', mins:[10], on:40, off:20, moves:['curl','lateral','kickback','press','hammer','front'], c:'sky'},
-  {id:'hiit', e:'⚡', name:'Quick HIIT', mins:[5,10], on:30, off:15, moves:['jacks','knees','squatjump','climber','skater','modburpee'], c:'lime', jumpy:1},
+  {id:'arms', e:'💪', name:'Arms & Shoulders', mins:[10], on:40, off:20, moves:['curl','lateral','kickback','press','halo','hammer','front','bandrow'], c:'sky'},
+  {id:'hiit', e:'⚡', name:'Quick HIIT', mins:[5,10], on:30, off:15, moves:['skip','kbswing','jacks','squatjump','climber','knees','skater','modburpee'], c:'lime', jumpy:1},
   {id:'mobility', e:'🧘‍♀️', name:'Core & Mobility', mins:[10], on:45, off:15, moves:['birddog','deadbug','sideplank','bridge','plank'], c:'mint'}
 ];
 export const FINISHER_CLIP = {abs:"Let's do your abs burner.", glutes:"Let's do your glute finisher.", arms:"Let's do your arms and shoulders finisher.", hiit:"Let's do a quick HIIT finisher.", mobility:"Let's do your core and mobility finisher."};
@@ -188,15 +282,52 @@ export const STRETCH = {
   pigeon:{n:'Pigeon pose',q:'pigeon pose beginner',side:1}, butterfly:{n:'Butterfly stretch',q:'butterfly stretch',},
   fold:{n:'Forward fold',q:'standing forward fold stretch'}, quad:{n:'Standing quad stretch',q:'standing quad stretch',side:1},
   calfs:{n:'Calf stretch',q:'calf stretch wall',side:1}, thread:{n:'Thread the needle',q:'thread the needle stretch',side:1},
-  chest:{n:'Doorway chest stretch',q:'doorway chest stretch'}, neck:{n:'Gentle neck stretch',q:'gentle neck stretch',side:1},
-  dog:{n:'Downward dog',q:'downward dog beginner'}, happy:{n:'Happy baby',q:'happy baby pose'}, sidebend:{n:'Seated side bend',q:'seated side bend stretch',side:1},
+  chestst:{n:'Doorway chest stretch',q:'doorway chest stretch'}, neck:{n:'Gentle neck stretch',q:'gentle neck stretch',side:1},
+  dog:{n:'Downward dog',q:'downward dog beginner'},
+  rollquad:{n:'Foam roll: quads',q:'foam roll quads'}, rollglute:{n:'Foam roll: glutes',q:'foam roll glutes',side:1}, rollback:{n:'Foam roll: upper back',q:'foam roll upper back'},
+  rollcalf:{n:'Foam roll: calves',q:'foam roll calves',side:1}, rollit:{n:'Foam roll: outer thighs',q:'foam roll IT band gently',side:1}, neckcloud:{n:'Neck cloud rest',q:'neck cloud cervical traction pillow how to use'}, happy:{n:'Happy baby',q:'happy baby pose'}, sidebend:{n:'Seated side bend',q:'seated side bend stretch',side:1},
   frog:{n:'Frog stretch',q:'frog stretch hips'}, sphinx:{n:'Sphinx pose',q:'sphinx pose stretch'}
 };
 export const ROUTINES = {
-  night:{name:'10-minute wind-down', e:'🌙', mins:10, list:[['child',60],['catcow',45],['fig4',45],['ham',45],['twist',45],['happy',45],['wall',90]]},
-  deep:{name:'Deep full-body stretch', e:'🌿', mins:25, list:[['catcow',60],['child',60],['thread',45],['dog',60],['lowlunge',60],['pigeon',75],['quad',40],['calfs',40],['fold',60],['butterfly',60],['frog',60],['sphinx',60],['ham',50],['fig4',50],['twist',50],['chest',45],['neck',30],['sidebend',40],['wall',90]]},
+  night:{name:'10-minute wind-down', e:'🌙', mins:10, list:[['child',60],['catcow',45],['fig4',40],['ham',40],['twist',40],['happy',40],['neckcloud',120]]},
+  roll:{name:'Foam roller reset', e:'🧽', mins:7, list:[['rollquad',60],['rollglute',45],['rollit',30],['rollcalf',40],['rollback',60]]},
+  deep:{name:'Deep full-body stretch', e:'🌿', mins:25, list:[['catcow',60],['child',60],['thread',45],['dog',60],['lowlunge',60],['pigeon',75],['quad',40],['calfs',40],['fold',60],['butterfly',60],['frog',60],['sphinx',60],['ham',50],['fig4',50],['twist',50],['chestst',45],['neck',30],['sidebend',40],['wall',90]]},
   post:{name:'5-minute post-run', e:'🏃‍♀️', mins:5, list:[['quad',40],['calfs',40],['lowlunge',40],['ham',35],['fig4',35]]}
 };
+/* Warm-ups and cool-downs change every workout: each is picked from a pool using the
+   date and session, so the same mix rarely comes round twice in a row. */
+export const WARM_POOL = {
+  lower:['squat','bridge','hydrant','bandwalk','clam','donkey','birddog','bandsquat'],
+  upper:['pullapart','kpushup','birddog','deadbug','bandrow','plank','halo','climber'],
+  full:['jacks','squat','birddog','deadbug','skip','knees','bridge','climber'],
+  core:['birddog','deadbug','bridge','plank','heeltap','sideplank','flutter']
+};
+export const COOL_POOL = {
+  lower:['quad','ham','fig4','lowlunge','pigeon','butterfly','frog','calfs','fold','twist'],
+  upper:['chestst','thread','neck','catcow','sidebend','sphinx','dog','twist','child'],
+  full:['ham','quad','chestst','fig4','thread','lowlunge','fold','catcow','dog','sidebend'],
+  core:['sphinx','twist','catcow','sidebend','butterfly','dog','frog']
+};
+const COOL_FINAL = ['child','happy','butterfly','twist','child','sphinx'];
+const COOL_SECS = {neck:30, child:45, happy:40, sphinx:40};
+// A repeatable shuffle: the same seed always gives the same order, a new seed a new order.
+function shuffled(pool, seed){
+  let x = (seed * 2654435761) >>> 0; const rnd = () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+  const a = pool.slice(); for(let i=a.length-1; i>0; i--){ const j = Math.floor(rnd()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; } return a;
+}
+// Pick n from the pool, preferring ones not used last time.
+function rotatePick(pool, n, seed, prevSeed){
+  const last = prevSeed === undefined ? [] : shuffled(pool, prevSeed).slice(0, n);
+  const order = shuffled(pool, seed), fresh = order.filter(id => !last.includes(id)), old = order.filter(id => last.includes(id));
+  return [...fresh, ...old].slice(0, n);
+}
+export const daySeed = (date, slot) => Math.floor(parse(date).getTime()/864e5) * 3 + ({A:0,B:1,C:2}[slot] || 0);
+export function warmFor(type, seed){ return rotatePick(WARM_POOL[type] || WARM_POOL.full, 4, seed + 101, seed - 3 + 101).map(id => [id, 30]); }
+export function coolFor(type, seed){
+  const main = rotatePick(COOL_POOL[type] || COOL_POOL.full, 4, seed + 7, seed - 3 + 7);
+  let fin = shuffled(COOL_FINAL, seed + 13)[0]; if(main.includes(fin)) fin = COOL_FINAL.find(f => !main.includes(f)) || 'child';
+  return [...main, fin].map(id => [id, COOL_SECS[id] || (STRETCH[id] && STRETCH[id].side ? 35 : 40)]);
+}
 export function routineSecs(r){ return r.list.reduce((a,[id,s])=>a + s*(STRETCH[id].side ? 2 : 1), 0); }
 
 /* ---------- 10 km running plan: one key run a week, plus an optional easy run ---------- */
@@ -243,7 +374,7 @@ export function planFor(state, date, opts={}){
     if(s[slot] !== d || !inProgram) return;
     const pausedFrom = pw && pw.mode==='pause' && date >= pw.from;
     if(pausedFrom) out.push({key:'str-'+slot, kind:'strength', slot, title:PERIOD_SESSION.title, session:PERIOD_SESSION, period:true});
-    else out.push({key:'str-'+slot, kind:'strength', slot, title:p.days[slot].title, session:p.days[slot], gentle: !!(pw && pw.mode==='gentle' && date >= pw.from), program:p.id, week:wk});
+    else out.push({key:'str-'+slot, kind:'strength', slot, title:p.days[slot].title, session:sessionFor(p.days[slot], wk), gentle: !!(pw && pw.mode==='gentle' && date >= pw.from), program:p.id, week:wk});
   });
   if(state && state.runStart && s.run === d){ const rw = runWeek(state, date); if(rw <= RUN_PLAN.length) out.push({key:'run', kind:'run', title:'Run', km:RUN_PLAN[rw-1], week:rw}); }
   if(state && state.runStart && s.runOpt === d) out.push({key:'runopt', kind:'run', optional:true, title:'Easy run (optional)', km:3});
