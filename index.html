@@ -79,7 +79,8 @@ button.chip[aria-pressed="true"]{background:var(--btn);color:var(--btnInk)}
 .week .n{width:38px;height:38px;margin:4px auto 0;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px}
 .week .done{background:var(--btn);color:var(--btnInk)}
 .week .plan{box-shadow:inset 0 0 0 2px #CFCBDD}
-.week .today{box-shadow:inset 0 0 0 2.5px var(--blue);color:var(--blue)}
+.week .today{box-shadow:0 0 0 2px var(--bg),0 0 0 4.5px var(--blue)}
+.week .today:not(.done):not(.run){color:var(--blue)}
 .week .run{background:var(--lime)}
 .week .flow{background:var(--u-pink)}
 .week .dots{height:8px;font-size:9px;line-height:8px;color:var(--muted)}

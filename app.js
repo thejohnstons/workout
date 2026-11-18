@@ -13,6 +13,7 @@ const TODAY = () => P.iso(new Date());
 const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
 const local = { get(k,d){ try{ const v = localStorage.getItem('mw-'+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } }, set(k,v){ try{ localStorage.setItem('mw-'+k, JSON.stringify(v)); }catch(e){} } };
 
+let metrics = [], tests = [];
 let user = null, S = {}, IMP = null, logs = [], periods = [], symptoms = {}, pweeks = {}, view = 'today';
 let loaded = {meta:0, logs:0, cycle:0};
 
@@ -161,8 +162,8 @@ function renderToday(){
   const mon = P.monday(date);
   html += `<div class="card"><div class="week">${P.DAY_NAMES.map((dn,i) => { const d = P.addDays(mon,i), pl = P.planFor(S, d, {periodWeek:periodWeek(d)}).filter(x=>!x.night && !x.optional);
       const done = logs.some(l => l.date===d && l.kind!=='stretch-night' && !(l.planKey==='night'));
-      const run = pl.some(x=>x.kind==='run'), cls = done ? 'done' : d===date ? 'today' : run ? 'run' : pl.length ? 'plan' : '';
-      return `<div><div class="d">${dn}</div><div class="n ${cls}${isPeriodDay(d)?' flow':''}">${done?'✓':P.parse(d).getDate()}</div></div>`; }).join('')}</div>
+      const run = pl.some(x=>x.kind==='run'), cls = (done ? 'done' : run ? 'run' : pl.length ? 'plan' : '') + (d===date ? ' today' : '');
+      return `<div><div class="d" style="${d===date?'color:var(--blue);font-weight:800':''}">${d===date?'Today':dn}</div><div class="n ${cls}${isPeriodDay(d)?' flow':''}">${done?'✓':P.parse(d).getDate()}</div></div>`; }).join('')}</div>
     <p class="note" style="margin:10px 0 0">● done · ○ planned · <span style="color:#7A9A1E">●</span> run${cycleOn()?' · 🌸 period':''}</p></div>`;
   // today's sessions
   const main = plan.filter(x => !x.night && !x.optional);
@@ -174,7 +175,7 @@ function renderToday(){
       html += `<div class="tint ${c} hero" style="margin-top:12px"><div class="mm-float">${muscleBlock(sessionIds(x.session), 104, false)}</div><p class="kicker">${x.period?'Period week':'Today'}</p><p class="big">${esc(x.title)}</p>
         <p class="muted" style="margin:0 0 10px">${esc((x.session.ex||[]).map(b => (b.ss||[b]).map(i=>P.EX[i.id].n).join(' + ')).slice(0,3).join(' · '))}${x.session.ex.length>3?' and more':''}</p>
         <div class="row" style="margin-bottom:12px">${x.session.style?`<span class="chip">✨ ${esc(x.session.style)}</span>`:''}<span class="chip">⏱ about ${estMins(x.session)} min</span>${x.gentle?'<span class="chip">🌸 Gentler version</span>':''}${x.week?`<span class="chip">Week ${x.week}</span>`:''}</div>
-        ${d ? `<div class="row"><span class="chip" style="background:var(--btn);color:var(--btnInk)">✓ Done</span><button class="btn soft" type="button" data-undo="${d.id}">Undo</button><button class="btn soft" type="button" data-fin="1">➕ Add a finisher</button></div>`
+        ${d ? `<div class="row"><span class="chip" style="background:var(--btn);color:var(--btnInk)">✓ Done${logs.filter(l=>l.date===date && l.planKey===x.key).length>1 ? ' ×'+logs.filter(l=>l.date===date && l.planKey===x.key).length : ''}</span><button class="btn soft" type="button" data-start="${x.key}">↻ Do another session</button><button class="btn soft" type="button" data-fin="1">➕ Add a finisher</button><button class="btn soft" type="button" data-undo="${d.id}">Undo</button></div>`
             : `<div class="row"><button class="btn" type="button" data-start="${x.key}">▶ Start workout</button><button class="btn soft" type="button" data-quick="${x.key}">Mark done</button></div>`}</div>`;
     } else if(x.kind==='run'){
       const next = nextRunKm(), note = P.RUN_NOTES[(x.week||1)-1];
@@ -187,7 +188,10 @@ function renderToday(){
     }
   });
   if(S.program && !main.some(x=>x.kind==='strength')) html += `<div class="card" style="margin-top:12px"><p class="kicker muted">Rest day</p><p style="margin:4px 0 0">No strength session today. Enjoy it! 🌿 Feel like moving anyway? Try a finisher or log something below.</p></div>`;
-  html += `<button class="btn line wide" id="logOwn" type="button" style="margin-top:14px;padding:14px">➕ Log my own workout</button>`;
+  if(testDue() && !logs.some(l=>l.date===date && l.kind==='test')) html += `<div class="tint c-lime" style="margin-top:12px"><p class="kicker">${tests.length ? 'Every 6 weeks' : 'Your starting point'}</p><p class="big">🏆 Fitness test day</p><p class="muted">Eight quick tests, about 25 minutes${tests.length ? ', to see how far you’ve come since '+esc(tests[tests.length-1].date) : ''}.</p><div class="row"><button class="btn" type="button" data-starttest="1">▶ Start the tests</button></div></div>`;
+  const todays = logs.filter(l => l.date===date).sort((a,b)=>(a.at||0)-(b.at||0));
+  if(todays.length) html += `<div class="card" style="margin-top:12px"><p class="kicker muted" style="margin:0 0 4px">Done today 🎉</p>${todays.map(l=>`<div class="item" style="padding:8px 0"><span class="ic ${l.kind==='run'?'c-lime':l.kind==='stretch'?'c-lilac':l.kind==='finisher'?'c-peach':'c-pink'}" style="width:34px;height:34px;font-size:16px">${l.kind==='run'?'🏃‍♀️':l.kind==='stretch'?'🌿':l.kind==='finisher'?'🔥':l.manual?'✨':'💪'}</span><span><b style="font-size:15px">${esc(P.eventTitle(l))}</b>${l.mins?`<span class="s">${l.mins} min</span>`:''}</span><button class="btn soft" type="button" data-undo="${l.id}" aria-label="Remove ${esc(P.eventTitle(l))}">Remove</button></div>`).join('')}</div>`;
+  html += `<button class="btn line wide" id="logOwn" type="button" style="margin-top:14px;padding:14px">➕ Log another workout</button>`;
   // tonight
   const nd = isDone(date,'night');
   html += `<div class="tint c-lilac" style="margin-top:12px"><p class="kicker">Tonight 🌙</p><p class="big" style="font-size:22px">10-minute wind-down stretch</p>
@@ -242,6 +246,10 @@ document.addEventListener('click', async e => {
   if(d.chjoin){ await metaSave({challenges:{...(S.challenges||{}), [d.chjoin]:{start:TODAY(), ticks:[]}}}); closeSheet(); toast('Challenge started! 🏆'); return; }
   if(d.prog){ return programSheet(d.prog); }
   if(d.editcycle){ return editCycleSheet(d.editcycle); }
+  if(d.metric){ return metricSheet(d.metric); }
+  if(d.starttest){ return startTests(); }
+  if(t.id==='mAdd') return addMetricsSheet();
+  if(t.id==='mChoose') return chooseMetricsSheet();
 });
 
 /* =====================================================================
@@ -657,6 +665,198 @@ function feelingSheet(from){
 }
 
 /* =====================================================================
+   FITNESS TEST DAY (every 6 weeks, private)
+   ===================================================================== */
+const TESTS = [
+  {k:'balanceL', n:'Balance: left leg', e:'🦩', u:'s', kind:'hold', cap:60, how:'Stand on your left leg with the other foot lifted behind you and your arms by your sides. Tap Start as you lift and Stop when your foot touches down (up to 60 seconds).', goal:30, goalNote:'10 s is the research cut-off; aim to build to 30 s'},
+  {k:'balanceR', n:'Balance: right leg', e:'🦩', u:'s', kind:'hold', cap:60, how:'Same again on your right leg.', goal:30, goalNote:'10 s is the research cut-off; aim to build to 30 s'},
+  {k:'srt', n:'Sitting-rising test', e:'🧘‍♀️', u:'/10', kind:'score', how:'From standing, sit down cross-legged on the floor, then stand back up. Start at 10, take off 1 for each hand, forearm, knee or side of leg you use for support, and ½ for any wobble. Take your best of two tries.', goal:8, goalNote:'8–10 is a great score'},
+  {k:'pushups', n:'Push-ups', e:'💪', u:'reps', kind:'count', how:'As many good push-ups as you can in one go, without resting. Choose full or kneeling, and use the same type next time so you can compare.'},
+  {k:'plank', n:'Plank hold', e:'🧱', u:'s', kind:'hold', how:'Forearm plank, in a straight line from head to heels. Stop when your hips drop or you need to rest.'},
+  {k:'wallsit', n:'Wall sit', e:'🪑', u:'s', kind:'hold', how:'Back flat against a wall, thighs parallel to the floor, knees over your ankles. Stop when you need to stand.'},
+  {k:'carry', n:'Farmer’s carry', e:'🧳', u:'s', kind:'carry', how:'Hold a dumbbell in each hand and walk tall (or stand still) until your grip gives out. Use the same weights each test to compare, or go heavier as you get stronger.'},
+  {k:'cardio', n:'12-minute run or walk', e:'🏃‍♀️', u:'km', kind:'distance', optional:true, how:'Optional: run or walk briskly as far as you can in 12 minutes, then enter the distance from your watch or phone. Fine to skip today and do it on a run day.'}
+];
+const testDay = () => (S.schedule && S.schedule.test !== undefined) ? S.schedule.test : 6;   // Sunday
+function nextTestDue(){
+  const last = tests.length ? tests[tests.length-1].date : null;
+  let d = last ? P.addDays(last, 42) : TODAY();
+  for(let i=0; i<7 && P.dow(d)!==testDay(); i++) d = P.addDays(d, 1);
+  return d;
+}
+const testDue = () => TODAY() >= nextTestDue();
+const lastBW = () => { const w = series('weight'); return w.length ? w[w.length-1].v : null; };
+const fmtSecs = s => s >= 60 ? `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,'0')}` : `${Math.round(s)} s`;
+function showVal(t, v, row){
+  if(v === undefined || v === null || v === '') return '–';
+  if(t.kind==='hold' || t.kind==='carry') return fmtSecs(v) + (t.kind==='carry' && row && row.carryKg ? ` · 2 × ${row.carryKg} kg` : '');
+  if(t.kind==='count') return v + (row && row.pushType==='knees' ? ' (kneeling)' : '');
+  return v + ' ' + t.u;
+}
+// Compare a result with the test before (carry: only with the same weights; push-ups: the same type)
+function compare(t, row, prev){
+  if(!prev || row[t.k]==null || prev[t.k]==null) return '';
+  if(t.k==='pushups' && (row.pushType||'full') !== (prev.pushType||'full')) return '';
+  if(t.k==='carry' && +row.carryKg !== +prev.carryKg) return +row.carryKg > +prev.carryKg ? '⬆️ heavier weights' : '';
+  const d = +row[t.k] - +prev[t.k]; if(Math.abs(d) < 0.01) return '= same';
+  const txt = (t.kind==='hold'||t.kind==='carry') ? `${Math.round(Math.abs(d))} s` : t.kind==='distance' ? `${Math.round(Math.abs(d)*100)/100} km` : String(Math.abs(d));
+  return d > 0 ? `🎉 +${txt}` : `−${txt}`;
+}
+const isPB = (t, row) => row[t.k]!=null && tests.filter(x=>x.id!==row.id && x[t.k]!=null && (t.k!=='carry' || +x.carryKg===+row.carryKg)).every(x => +row[t.k] > +x[t.k]) && tests.some(x=>x.id!==row.id && x[t.k]!=null);
+let TT = null, ttTimer = null;
+function startTests(){ TT = {i:-1, res:{}, pushType:(tests.length && tests[tests.length-1].pushType) || 'full', carryKg:(tests.length && tests[tests.length-1].carryKg) || '', started:Date.now()}; testStep(); }
+function testStep(){
+  clearInterval(ttTimer);
+  if(TT.i < 0) return openSheet('🏆 Fitness test day', `<p>Eight quick tests, about 25 minutes. Do them in order, have a rest between each, and write down your best effort.</p>
+    <div class="card" style="margin:10px 0"><b>Warm up first (5 minutes)</b><p class="note" style="color:var(--ink);margin:6px 0 0">March on the spot, 10 squats, 10 arm circles each way, 5 slow push-ups, and a few leg swings.</p></div>
+    ${tests.length ? `<p class="note">Last test: ${esc(tests[tests.length-1].date)}. Try to match the conditions (same time of day, same shoes).</p>` : '<p class="note">This is your first test, so it’s your starting point. No pressure: it’s just you against you from here.</p>'}
+    <button class="btn wide" id="ttGo" type="button" style="margin-top:12px;padding:15px">Let’s go ▶</button>`, b => { b.querySelector('#ttGo').onclick = () => { TT.i = 0; testStep(); }; });
+  if(TT.i >= TESTS.length) return testResults();
+  const t = TESTS[TT.i], prev = tests.length ? tests[tests.length-1] : null, cur = TT.res[t.k];
+  let ctl = '';
+  if(t.kind==='hold' || t.kind==='carry') ctl = `${t.kind==='carry' ? `<label class="l" for="tt-kg">Weight in each hand (kg)</label><input class="f" id="tt-kg" inputmode="decimal" value="${esc(TT.carryKg)}" placeholder="e.g. 12">${lastBW() ? `<p class="note" id="tt-pct"></p>` : ''}` : ''}
+    <div class="clock" id="tt-clk" style="text-align:center;margin:12px 0">${cur!=null ? fmtSecs(cur) : '0 s'}</div>
+    <div class="row" style="justify-content:center"><button class="btn" id="tt-sw" type="button">▶ Start</button></div>`;
+  if(t.kind==='score') ctl = `<div class="row" style="justify-content:center;align-items:center;gap:14px;margin:14px 0"><button class="btn soft" id="tt-m" type="button" aria-label="Half a point less">−</button><span class="clock" id="tt-v" style="margin:0">${cur!=null ? cur : 10}</span><button class="btn soft" id="tt-p" type="button" aria-label="Half a point more">+</button></div>`;
+  if(t.kind==='count') ctl = `<div class="chips" role="group" aria-label="Push-up type" style="justify-content:center;margin-top:10px"><button class="chip" type="button" data-pt="full" aria-pressed="${TT.pushType==='full'}">Full</button><button class="chip" type="button" data-pt="knees" aria-pressed="${TT.pushType==='knees'}">Kneeling</button></div>
+    <div class="row" style="justify-content:center;align-items:center;gap:14px;margin:14px 0"><button class="btn soft" id="tt-m" type="button" aria-label="One less">−</button><span class="clock" id="tt-v" style="margin:0">${cur!=null ? cur : 0}</span><button class="btn soft" id="tt-p" type="button" aria-label="One more">+</button></div>`;
+  if(t.kind==='distance') ctl = `<label class="l" for="tt-km">Distance (km)</label><input class="f" id="tt-km" inputmode="decimal" value="${cur!=null ? cur : ''}" placeholder="e.g. 1.6">`;
+  openSheet(`${t.e} ${t.n}`, `<p class="note">Test ${TT.i+1} of ${TESTS.length}</p><p>${esc(t.how)}</p>
+    ${prev && prev[t.k]!=null ? `<p class="note" style="color:var(--ink)">Last time: <b>${esc(showVal(t, prev[t.k], prev))}</b></p>` : ''}${t.goalNote ? `<p class="note">🎯 ${esc(t.goalNote)}</p>` : ''}
+    ${ctl}
+    <div class="row" style="justify-content:space-between;margin-top:16px"><button class="btn soft" id="tt-back" type="button">← Back</button><button class="btn soft" id="tt-skip" type="button">Skip</button><button class="btn" id="tt-next" type="button">${TT.i===TESTS.length-1 ? 'See my results 🏆' : 'Next →'}</button></div>`, b => {
+    const val = b.querySelector('#tt-v');
+    const step = t.kind==='score' ? 0.5 : 1, max = t.kind==='score' ? 10 : 999;
+    if(val){ const setV = v => { v = Math.max(0, Math.min(max, v)); val.textContent = v; TT.res[t.k] = v; };
+      if(TT.res[t.k]==null && t.kind==='score') TT.res[t.k] = 10;
+      b.querySelector('#tt-m').onclick = () => setV(+val.textContent - step); b.querySelector('#tt-p').onclick = () => setV(+val.textContent + step); }
+    b.querySelectorAll('[data-pt]').forEach(c => c.onclick = () => { TT.pushType = c.dataset.pt; b.querySelectorAll('[data-pt]').forEach(x=>x.setAttribute('aria-pressed', String(x===c))); });
+    const kg = b.querySelector('#tt-kg'), pct = b.querySelector('#tt-pct');
+    const showPct = () => { if(pct && kg){ const k = +String(kg.value).replace(',','.'); pct.textContent = k ? `That’s ${Math.round(k*2/lastBW()*100)}% of your body weight (${lastBW()} kg). The popular benchmark is 75% for a minute.` : ''; } };
+    if(kg){ kg.oninput = () => { TT.carryKg = kg.value; showPct(); }; showPct(); }
+    const sw = b.querySelector('#tt-sw');
+    if(sw){ let start = null; const clk = b.querySelector('#tt-clk');
+      sw.onclick = () => {
+        if(start === null){ start = Date.now(); sw.textContent = '■ Stop'; say('Three. Two. One. Go!');
+          ttTimer = setInterval(() => { const s = (Date.now()-start)/1000; clk.textContent = fmtSecs(s); if(t.cap && s >= t.cap){ sw.click(); } }, 200); }
+        else { clearInterval(ttTimer); const s = Math.min(t.cap||9999, Math.round((Date.now()-start)/1000)); TT.res[t.k] = s; clk.textContent = fmtSecs(s); start = null; sw.textContent = '↻ Redo'; if(navigator.vibrate) navigator.vibrate(60); }
+      }; }
+    const km = b.querySelector('#tt-km'); if(km) km.oninput = () => { const v = +String(km.value).replace(',','.'); if(v > 0) TT.res[t.k] = v; else delete TT.res[t.k]; };
+    b.querySelector('#tt-back').onclick = () => { TT.i = Math.max(-1, TT.i-1); testStep(); };
+    b.querySelector('#tt-skip').onclick = () => { delete TT.res[t.k]; TT.i++; testStep(); };
+    b.querySelector('#tt-next').onclick = () => { if(t.kind==='carry' && TT.res.carry!=null && !(+String(TT.carryKg).replace(',','.') > 0)){ toast('Add the weight in each hand first.'); return; } TT.i++; testStep(); };
+  });
+}
+function testResults(){
+  const row = {id:TODAY(), date:TODAY(), ...TT.res, pushType:TT.pushType}, prev = tests.filter(x=>x.date<row.date).pop();
+  if(TT.res.carry!=null) row.carryKg = +String(TT.carryKg).replace(',','.');
+  if(lastBW()) row.bw = lastBW();
+  const done = TESTS.filter(t => row[t.k]!=null);
+  if(!done.length){ closeSheet(); toast('No results recorded.'); return; }
+  F.put('~move_tests', row).catch(()=>toast('Saved on this phone. It will sync when you’re back online.'));
+  saveLog({kind:'test', title:'Fitness test', mins: Math.max(10, Math.round((Date.now()-TT.started)/60000))});
+  const wins = done.filter(t => /🎉|⬆️/.test(compare(t,row,prev))).length, pbs = done.filter(t => isPB(t,row)).length;
+  say('Workout complete! Amazing work.');
+  openSheet('🏆 Your results', `<div class="tint c-lime" style="text-align:center"><p class="big" style="margin:0">${prev ? (wins ? `${wins} improvement${wins===1?'':'s'}! 🎉` : 'Test complete ✓') : 'Your starting point is set! 🌱'}</p><p class="note" style="color:var(--ink);margin:6px 0 0">${prev ? `Compared with ${esc(prev.date)}${pbs?` · ${pbs} new personal best${pbs===1?'':'s'} 🏆`:''}` : 'Next time, you’ll see exactly how far you’ve come.'}</p></div>
+    <div class="card" style="margin-top:12px">${done.map(t=>`<div class="item" style="padding:9px 0"><span class="ic c-sky" style="width:36px;height:36px">${t.e}</span><span><b>${esc(t.n)}</b><span class="s">${esc(showVal(t,row[t.k],row))}${t.k==='carry'&&row.bw&&row.carryKg?` · ${Math.round(row.carryKg*2/row.bw*100)}% of body weight`:''}</span></span><span class="note" style="font-weight:800;color:var(--ink)">${isPB(t,row)?'🏆 ':''}${esc(compare(t,row,prev))}</span></div>`).join('')}</div>
+    <p class="note" style="margin-top:10px">Next test: ${esc(P.addDays(row.date, 42))} or the next ${P.DAY_NAMES[testDay()]} after. Your graphs are in Progress.</p>
+    <button class="btn wide" id="tt-done" type="button" style="margin-top:12px">Done</button>`, b => { b.querySelector('#tt-done').onclick = () => { closeSheet(); go('progress'); }; });
+  TT = null;
+}
+function testsHTML(){
+  const due = nextTestDue();
+  const cards = TESTS.map(t => { const pts = tests.filter(r => r[t.k]!=null).map(r => ({date:r.date, v:+r[t.k]}));
+    if(!pts.length) return '';
+    const last = tests.filter(r=>r[t.k]!=null).pop(), best = Math.max(...pts.map(p=>p.v));
+    return `<div class="tint c-peach"><span class="note" style="color:var(--ink);font-weight:700">${t.e} ${esc(t.n)}</span><p class="big" style="margin:4px 0 0;font-size:24px">${esc(showVal(t, last[t.k], last))}</p>${pts.length>1 ? barChart(pts, t) : ''}<span class="note">${pts.length>1 ? `Best: ${esc(showVal(t,best,null))}` : 'First result'}${t.goal ? ` · goal ${t.goal}${t.u==='/10'?'':' '+t.u}` : ''}</span></div>`; }).join('');
+  return `<h2>Fitness tests 🏆</h2>
+    <div class="tint c-lime" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>${tests.length ? (testDue() ? 'Your next test is due!' : 'Next test') : 'Take your first test'}</b><p class="note" style="margin:2px 0 0;color:var(--ink)">${tests.length ? (testDue() ? 'Whenever suits you this week.' : esc(due)) : 'Sets your starting point. Then every 6 weeks.'}</p></div><button class="btn" type="button" data-starttest="1">${testDue()||!tests.length ? 'Start ▶' : 'Test now'}</button></div>
+    ${cards ? `<div class="grid2" style="margin-top:10px">${cards}</div>` : ''}`;
+}
+// Bars for each test date: easy to see progress at a glance
+function barChart(pts, t){
+  const w = 150, h = 54, max = Math.max(...pts.map(p=>p.v), t.goal||0) || 1, n = pts.slice(-6), bw = Math.min(22, (w-8)/n.length - 6);
+  const gy = t.goal ? h-12-(t.goal/max)*(h-18) : null;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" aria-hidden="true">${gy!==null?`<line x1="0" x2="${w}" y1="${gy}" y2="${gy}" stroke="var(--ink)" stroke-dasharray="3 3" stroke-opacity=".4"/>`:''}${n.map((p,i)=>{ const bh = Math.max(3,(p.v/max)*(h-18)), x = 4 + i*((w-8)/n.length) + 3; return `<rect x="${x}" y="${h-12-bh}" width="${bw}" height="${bh}" rx="4" fill="${i===n.length-1?'var(--blue)':'var(--muted)'}" fill-opacity="${i===n.length-1?1:.45}"/>`; }).join('')}</svg>`;
+}
+
+/* =====================================================================
+   BODY AND HEALTH (private)
+   ===================================================================== */
+const METRICS = [
+  {k:'weight', n:'Weight', u:'kg', step:0.1, e:'⚖️', down:true},
+  {k:'waist', n:'Waist', u:'cm', step:0.5, e:'📏', down:true},
+  {k:'hips', n:'Hips', u:'cm', step:0.5, e:'📏'},
+  {k:'chest', n:'Chest', u:'cm', step:0.5, e:'📏'},
+  {k:'thigh', n:'Thigh', u:'cm', step:0.5, e:'📏'},
+  {k:'arm', n:'Arm', u:'cm', step:0.5, e:'💪'},
+  {k:'bodyfat', n:'Body fat', u:'%', step:0.1, e:'📊', down:true},
+  {k:'rhr', n:'Resting heart rate', u:'bpm', step:1, e:'❤️', down:true},
+  {k:'sleep', n:'Sleep', u:'hours', step:0.25, e:'😴'},
+  {k:'steps', n:'Steps', u:'', step:100, e:'👟'}
+];
+const metricOn = () => S.metricsOn || ['weight','waist'];
+const series = k => metrics.filter(m => m[k] !== undefined && m[k] !== null && m[k] !== '').map(m => ({date:m.date, v:+m[k]}));
+const fmtV = (v, mt) => mt.k==='steps' ? Math.round(v).toLocaleString('en-AU') : (Math.round(v*10)/10).toString();
+function sparkline(pts, w=150, h=44){
+  if(pts.length < 2) return '';
+  const vs = pts.map(p=>p.v), lo = Math.min(...vs), hi = Math.max(...vs), r = hi-lo || 1;
+  const xy = pts.map((p,i) => [i/(pts.length-1)*(w-6)+3, h-4-((p.v-lo)/r)*(h-8)]);
+  // a 7-entry rolling average shows the trend under day-to-day ups and downs
+  const avg = pts.map((p,i) => { const sl = vs.slice(Math.max(0,i-6), i+1); return sl.reduce((a,b)=>a+b,0)/sl.length; });
+  const axy = avg.map((v,i) => [xy[i][0], h-4-((v-lo)/r)*(h-8)]);
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" aria-hidden="true"><polyline points="${xy.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-opacity=".45"/><polyline points="${axy.map(p=>p.join(',')).join(' ')}" fill="none" stroke="var(--blue)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function healthHTML(){
+  const on = METRICS.filter(m => metricOn().includes(m.k));
+  const cards = on.map(mt => { const pts = series(mt.k), last = pts[pts.length-1], first = pts[0];
+    const ago = pts.filter(p => p.date <= P.addDays(TODAY(), -28)).pop();
+    const ch = (a,b) => { const d = b.v - a.v; return (d>0?'+':'') + fmtV(d, mt) + (mt.u?' '+mt.u:''); };
+    return `<button type="button" class="tint c-sky" data-metric="${mt.k}" style="border:0;text-align:left;width:100%"><span class="note" style="color:var(--ink);font-weight:700">${mt.e} ${esc(mt.n)}</span>
+      <p class="big" style="margin:4px 0 0">${last ? fmtV(last.v, mt) + (mt.u ? ` <span style="font-size:15px">${mt.u}</span>` : '') : '–'}</p>
+      ${sparkline(pts.slice(-30))}
+      <span class="note">${last ? (ago ? `4 weeks: ${ch(ago,last)}` : first && first!==last ? `Since start: ${ch(first,last)}` : `Logged ${esc(last.date)}`) : 'Tap to add'}</span></button>`; }).join('');
+  return `<h2>Body & health <small><button class="link" style="border:0;background:none;padding:0" id="mChoose" type="button">Choose what to track</button></small></h2>
+    <div class="grid2">${cards || '<p class="empty">Nothing chosen yet.</p>'}</div>
+    <button class="btn line wide" id="mAdd" type="button" style="margin-top:10px">➕ Add measurements</button>
+    <p class="note" style="margin-top:8px">🔒 Private to you. The blue line is a rolling average: weight naturally goes up and down by a kilo or two day to day, so the trend matters more than any single reading.</p>`;
+}
+function metricSheet(k){
+  const mt = METRICS.find(m=>m.k===k), pts = series(k);
+  const w = 320, h = 160, vs = pts.map(p=>p.v), lo = Math.min(...vs), hi = Math.max(...vs), r = (hi-lo) || 1;
+  const chart = pts.length > 1 ? `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${esc(mt.n)} over time">${[0,0.5,1].map(f=>`<line x1="0" x2="${w}" y1="${8+f*(h-28)}" y2="${8+f*(h-28)}" stroke="var(--line)"/><text x="2" y="${6+f*(h-28)}" font-size="10" fill="var(--muted)">${fmtV(hi - f*r, mt)}</text>`).join('')}
+    ${sparkline(pts, w, h-20).replace('<svg ', '<svg x="0" y="4" ')}<text x="2" y="${h-4}" font-size="10" fill="var(--muted)">${esc(pts[0].date)}</text><text x="${w-2}" y="${h-4}" font-size="10" fill="var(--muted)" text-anchor="end">${esc(pts[pts.length-1].date)}</text></svg>` : '<p class="note">Add a couple of entries to see a chart.</p>';
+  openSheet(`${mt.e} ${mt.n}`, `${chart}<button class="btn wide" id="mAdd2" type="button" style="margin:12px 0">➕ Add ${esc(mt.n.toLowerCase())}</button>
+    <div class="card">${pts.slice().reverse().map(p=>`<div class="item" style="padding:8px 0"><span class="ic c-sky" style="width:32px;height:32px;font-size:14px">${mt.e}</span><span><b>${fmtV(p.v, mt)} ${mt.u}</b><span class="s">${esc(p.date)}</span></span><button class="btn soft" type="button" data-mdel="${esc(p.date)}">Remove</button></div>`).join('') || '<p class="empty">No entries yet.</p>'}</div>`, body => {
+    body.querySelector('#mAdd2').onclick = () => addMetricsSheet([k]);
+    body.querySelectorAll('[data-mdel]').forEach(b => b.onclick = async () => { await F.patch('~move_metrics', b.dataset.mdel, {[k]: null}); metricSheet(k); });
+  });
+}
+function addMetricsSheet(only){
+  const list = METRICS.filter(m => (only || metricOn()).includes(m.k));
+  const todayRow = metrics.find(m => m.date===TODAY()) || {};
+  openSheet('Add measurements', `<label class="l" for="m-date">Date</label><input class="f" id="m-date" type="date" value="${TODAY()}" max="${TODAY()}">
+    <div class="grid2">${list.map(mt=>`<div><label class="l" for="m-${mt.k}">${mt.e} ${esc(mt.n)}${mt.u?` (${mt.u})`:''}</label><input class="f" id="m-${mt.k}" inputmode="decimal" placeholder="${mt.k==='weight'?'e.g. 64.5':''}" value="${todayRow[mt.k]!=null && todayRow[mt.k]!=='' ? todayRow[mt.k] : ''}"></div>`).join('')}</div>
+    <p class="note" style="margin-top:8px">Fill in whatever you measured. Leave the rest blank.</p>
+    <button class="btn wide" id="m-save" type="button" style="margin-top:14px;padding:15px">Save</button>`, body => {
+    body.querySelector('#m-save').onclick = () => {
+      const date = body.querySelector('#m-date').value || TODAY(), row = {id:date, date};
+      list.forEach(mt => { const v = String(body.querySelector('#m-'+mt.k).value).replace(',','.').trim(); if(v !== '' && !isNaN(+v)) row[mt.k] = +v; });
+      if(Object.keys(row).length <= 2){ toast('Add at least one measurement.'); return; }
+      F.patch('~move_metrics', date, row).catch(()=>toast('Saved on this phone. It will sync when you’re back online.'));
+      closeSheet(); toast('Saved 📈');
+    };
+  });
+}
+function chooseMetricsSheet(){
+  openSheet('Choose what to track', `<div class="chips">${METRICS.map(mt=>`<button class="chip" type="button" data-mk="${mt.k}" aria-pressed="${metricOn().includes(mt.k)}">${mt.e} ${esc(mt.n)}</button>`).join('')}</div>
+    <button class="btn wide" id="mc-save" type="button" style="margin-top:16px">Save</button>`, body => {
+    body.querySelectorAll('[data-mk]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed')!=='true')));
+    body.querySelector('#mc-save').onclick = async () => { await metaSave({metricsOn:[...body.querySelectorAll('[data-mk][aria-pressed="true"]')].map(b=>b.dataset.mk)}); closeSheet(); };
+  });
+}
+
+/* =====================================================================
    PROGRESS
    ===================================================================== */
 function renderProgress(){
@@ -674,6 +874,8 @@ function renderProgress(){
   const recent = logs.slice().sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,10);
   $('#v-progress').innerHTML = `<h1>Progress 📈</h1><p class="sub">${IMP ? `Includes ${IMP.total} past workouts from your Exercise calendar.` : 'Connect your Exercise calendar in Settings ⚙︎ to bring in your past workouts.'}</p>
     <div class="grid2">${[['pink','Sessions this year',thisYear],['lime','Longest run',longest+' km'],['lilac','Weekly streak',streak+' week'+(streak===1?'':'s')],['sky','All time',allDates.length]].map(([c,a,b])=>`<div class="tint c-${c}"><span class="note" style="color:var(--ink);font-weight:700">${a}</span><p class="big" style="margin:4px 0 0">${b}</p></div>`).join('')}</div>
+    ${testsHTML()}
+    ${healthHTML()}
     <h2>Sessions per month</h2><div class="card"><div class="bars">${months.map((m,i)=>`<div><b style="color:var(--ink)">${counts[i]}</b><i class="c-${cols[i]}" style="height:${Math.max(6,counts[i]/max*100)}px"></i>${F.MONTHS[+m.slice(5)-1].slice(0,3)}</div>`).join('')}</div></div>
     <h2>Personal bests 🎉</h2>${pbs.length ? `<div class="card">${pbs.map(([id,v])=>`<div class="item" style="padding:9px 0"><span class="ic c-pink" style="width:32px;height:32px;font-size:15px">🏋️</span><span><b style="font-size:15px">${esc(P.EX[id].n)}</b></span><b>${v} kg</b></div>`).join('')}</div>` : '<p class="empty">Log your weights in a workout and your bests show up here.</p>'}
     <h2>Recent</h2>${recent.length ? `<div class="card">${recent.map(l=>`<div class="item"><span class="ic ${l.kind==='run'?'c-lime':l.kind==='stretch'?'c-lilac':l.kind==='finisher'?'c-peach':'c-pink'}">${l.kind==='run'?'🏃‍♀️':l.kind==='stretch'?'🌿':l.kind==='finisher'?'🔥':l.manual?'✨':'💪'}</span><span><b>${esc(P.eventTitle(l))}</b><span class="s">${esc(l.date)} · ${l.calId?'📅 in your calendar':l.pendingCal?'waiting for calendar':''}</span></span><button class="btn soft" type="button" data-undo="${l.id}">Remove</button></div>`).join('')}</div>` : '<p class="empty">Nothing logged yet.</p>'}
@@ -690,6 +892,7 @@ function settingsSheet(){
   openSheet('Settings', `<h2 style="margin-top:0">Your week</h2>
     <div class="grid2">${sel('A', 'Session 1 ('+p.days.A.title+')')}${sel('B','Session 2 ('+p.days.B.title+')')}${sel('C','Session 3 ('+p.days.C.title+')')}${sel('run','Key run')}${sel('runOpt','Optional run')}</div>
     <label class="l" id="dsl">Deep stretch days</label><div class="chips" role="group" aria-labelledby="dsl">${P.DAY_NAMES.map((d,i)=>`<button class="chip" type="button" data-deep="${i}" aria-pressed="${(sch.deep||[]).includes(i)}">${d}</button>`).join('')}</div>
+    <label class="l" id="tdl">Fitness test day (every 6 weeks)</label><div class="chips" role="group" aria-labelledby="tdl">${P.DAY_NAMES.map((d,i)=>`<button class="chip" type="button" data-tday="${i}" aria-pressed="${testDay()===i}">${d}</button>`).join('')}</div>
     <button class="btn wide" id="schSave" type="button" style="margin-top:14px">Save my week</button>
     <h2>Exercise calendar 📅</h2>
     ${!F.CAL_CLIENT_ID ? '<p class="note">Google isn’t set up yet.</p>' : !t ? `<p class="note">Connect Google so finished workouts go into your Exercise calendar as all-day events.</p><button class="btn" id="gConnect" type="button">Connect Google</button>`
@@ -706,8 +909,9 @@ function settingsSheet(){
       <div class="stack" style="gap:6px;margin-top:8px">${Object.keys(VOICE).map((l,i)=>`<button type="button" class="chip" data-vcheck="${i}" style="justify-content:flex-start;text-align:left;border:0">▶ ${esc(l)}</button>`).join('')}</div></details>
     <h2>Account</h2><p class="note">Signed in as ${esc(user.email)}. 🔒 Your workouts and cycle are private to you.</p><button class="btn line" id="out" type="button">Sign out</button>`, async body => {
     body.querySelectorAll('[data-deep]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed')!=='true')));
+    body.querySelectorAll('[data-tday]').forEach(b => b.onclick = () => body.querySelectorAll('[data-tday]').forEach(x => x.setAttribute('aria-pressed', String(x===b))));
     body.querySelector('#schSave').onclick = async () => { const g = k => +body.querySelector('#s-'+k).value;
-      await metaSave({schedule:{A:g('A'),B:g('B'),C:g('C'),run:g('run'),runOpt:g('runOpt'),deep:[...body.querySelectorAll('[data-deep][aria-pressed="true"]')].map(b=>+b.dataset.deep)}}); toast('Your week is saved ✓'); closeSheet(); };
+      await metaSave({schedule:{A:g('A'),B:g('B'),C:g('C'),run:g('run'),runOpt:g('runOpt'),deep:[...body.querySelectorAll('[data-deep][aria-pressed="true"]')].map(b=>+b.dataset.deep), test: +((body.querySelector('[data-tday][aria-pressed="true"]')||{dataset:{tday:6}}).dataset.tday)}}); toast('Your week is saved ✓'); closeSheet(); };
     body.querySelector('#vOn').onclick = e => { local.set('voice', !voiceOn()); e.target.setAttribute('aria-pressed', String(voiceOn())); e.target.textContent = '🔊 Trainer voice '+(voiceOn()?'on':'off'); if(voiceOn()) say('Ready? Let\'s go.'); };
     body.querySelector('#out').onclick = () => F.logOut();
     body.querySelectorAll('[data-vcheck]').forEach(b => b.onclick = () => { const l = Object.keys(VOICE)[+b.dataset.vcheck]; quiet(); const was = voiceOn(); local.set('voice', true); say(l); local.set('voice', was); });
@@ -740,6 +944,8 @@ F.watchUser(u => {
   F.listen('~move_logs', rows => { logs = rows; loaded.logs = 1; render(); }, () => {});
   F.listen('~move_cycle', rows => { periods = rows; loaded.cycle = 1; autoEndPeriods(); render(); }, () => {});
   F.listen('~move_periodweek', rows => { pweeks = {}; rows.forEach(r => pweeks[r.id] = r); render(); }, () => {});
+  F.listen('~move_tests', rows => { tests = rows.sort((a,b)=>a.date<b.date?-1:1); render(); }, () => {});
+  F.listen('~move_metrics', rows => { metrics = rows.sort((a,b)=>a.date<b.date?-1:1); if(view==='progress') render(); }, () => {});
   F.listen('~move_symptoms', rows => { symptoms = {}; rows.forEach(r => symptoms[r.id] = r); }, () => {});
   F.loadStyle(u.email).then(st => { famLook = st==='green' ? 'dark' : 'light'; render(); }).catch(()=>{});
   go(location.hash.slice(1) || 'today');
