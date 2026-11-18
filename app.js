@@ -4,6 +4,8 @@
 import * as F from '/family.js';
 import * as P from './plan.js';
 import * as M from './muscles.js';
+import { IMPORTED_WORKS } from './imported.js';
+Object.assign(M.WORKS, IMPORTED_WORKS);
 
 const $ = s => document.querySelector(s);
 const esc = F.esc;
@@ -287,14 +289,16 @@ function secsOf(reps){ const m = String(reps).match(/(\d+)\s*s/); return m ? +m[
 function startStrength(x){
   const sess = x.session, gentle = x.gentle || x.period, steps = [];
   const seed = P.daySeed(TODAY(), x.slot), warm = P.warmFor(sess.warm||'full', seed).map(([id, secs]) => [id, P.EX[id] && P.EX[id].side ? 20 : secs]);
-  warm.forEach(([id,s]) => { const sid = swap(id,gentle); steps.push({type:'timed', warm:true, id:sid, secs:s, sides: !!(P.EX[sid] && P.EX[sid].side), rest:10}); });
+  if(sess.warmItems) sess.warmItems.forEach(it => steps.push({type:'timed', warm:true, id:it.id, secs:it.secs, sides:it.sides, note:it.note, rest:10}));
+  else warm.forEach(([id,s]) => { const sid = swap(id,gentle); steps.push({type:'timed', warm:true, id:sid, secs:s, sides: !!(P.EX[sid] && P.EX[sid].side), rest:10}); });
   sess.ex.forEach((b, bi) => {
     const items = (b.ss || [b]).map(i => ({...i, id:swap(i.id, gentle), sets: gentle ? Math.max(2, i.sets-1) : i.sets}));
     const rounds = Math.max(...items.map(i=>i.sets));
     for(let r=1; r<=rounds; r++) items.forEach((it, k) => { if(r > it.sets) return; const lastInRound = k===items.length-1;
-      steps.push({type: isTimed(it.reps) ? 'hold' : 'set', id:it.id, round:r, sets:it.sets, reps:it.reps, secs: isTimed(it.reps) ? secsOf(it.reps) : 0, sides: isTimed(it.reps) && perSide(it.reps), rest: lastInRound ? (it.rest||60) : 0, ss: items.length>1, block:bi}); });
+      steps.push({type: isTimed(it.reps) ? 'hold' : 'set', note:it.note, label:it.label, id:it.id, round:r, sets:it.sets, reps:it.reps, secs: isTimed(it.reps) ? secsOf(it.reps) : 0, sides: isTimed(it.reps) && perSide(it.reps), rest: lastInRound ? (it.rest||60) : 0, ss: items.length>1, block:bi}); });
   });
-  P.coolFor(sess.warm||'full', seed).forEach(([id, secs], k) => steps.push({type:'timed', cool:true, first:k===0, auto:k>0, id, secs, sides: !!(P.STRETCH[id] && P.STRETCH[id].side), rest:0}));
+  if(sess.coolItems) sess.coolItems.forEach((it, k) => steps.push({type:'timed', cool:true, first:k===0, auto:k>0, id:it.id, secs:it.secs, sides:it.sides, note:it.note, rest:0}));
+  else P.coolFor(sess.warm||'full', seed).forEach(([id, secs], k) => steps.push({type:'timed', cool:true, first:k===0, auto:k>0, id, secs, sides: !!(P.STRETCH[id] && P.STRETCH[id].side), rest:0}));
   PL = {kind:'strength', x, gentle, steps, i:0, sets:{}, started:Date.now()};
   if(sess.style) toast(`${sess.style}: ${sess.styleNote}`);
   openPlayer(); say(new Date().getHours()<11 ? "Good morning! Let's get moving." : null, "Let's start with a quick warm-up."); drawStep();
@@ -305,7 +309,7 @@ function header(title){ const n = PL.steps.length, i = Math.min(PL.i, n); return
 function watchLink(id){ const ex = P.EX[id] || P.STRETCH[id]; return ex ? `<a class="chip link" href="${P.yt(ex.q)}" target="_blank" rel="noopener">▶ Watch how</a>` : ''; }
 function nameOf(id){ return (P.EX[id] || P.STRETCH[id] || {n:id}).n; }
 function nameOfStep(s){ return (s && s.cool ? (P.STRETCH[s.id] || P.EX[s.id]) : (P.EX[s.id] || P.STRETCH[s.id]) || {n:s.id}).n; }
-function upNext(from, count=3){ return PL.steps.slice(from, from+count).map(s => `<div class="item" style="padding:8px 0"><span class="ic" style="width:32px;height:32px;font-size:15px;background:var(--line)">${s.type==='set'?'🏋️':s.warm?'🔥':'⏱'}</span><span><b style="font-size:14.5px">${esc(nameOf(s.id))}</b><span class="s">${s.type==='set'?`Set ${s.round} of ${s.sets} · ${esc(P.repsLabel(s.id, s.reps))}`: (s.secs||'')+' s'+(s.sides?' each side':'')} · ${esc(P.gear(s.id))}</span></span><span></span></div>`).join(''); }
+function upNext(from, count=3){ return PL.steps.slice(from, from+count).map(s => `<div class="item" style="padding:8px 0"><span class="ic" style="width:32px;height:32px;font-size:15px;background:var(--line)">${s.type==='set'?'🏋️':s.warm?'🔥':'⏱'}</span><span><b style="font-size:14.5px">${esc(s.label||nameOf(s.id))}</b><span class="s">${s.type==='set'?`Set ${s.round} of ${s.sets} · ${esc(P.repsLabel(s.id, s.reps))}`: (s.secs||'')+' s'+(s.sides?' each side':'')} · ${esc(P.gear(s.id))}</span></span><span></span></div>`).join(''); }
 
 function drawStep(){
   clearInterval(plTimer);
@@ -316,8 +320,8 @@ function drawStep(){
     // Phases: one timer, or left side, a 3-second switch, then right side
     const phases = s.sides ? [{label:'Left side', secs:s.secs}, {label:'Switch sides', secs:3, gap:true}, {label:'Right side', secs:s.secs}] : [{label:'', secs:s.secs}];
     let pi = 0, left = phases[0].secs, running = false, started = false;
-    $('#player').innerHTML = `<div class="in">${header(title)}<div class="now ${s.warm?'c-peach':s.cool?'c-mint':''}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.warm?'Warm-up':s.cool?'Cool-down':`Set ${s.round} of ${s.sets}`}</span>${watchLink(s.id)}</div><p class="name">${esc(nameOf(s.id))}</p>
-      <div class="row" style="margin-top:4px">${gearChip(s.id)}${s.sides?`<span class="chip" style="background:var(--soft)">${s.secs} s each side</span>`:''}</div>
+    $('#player').innerHTML = `<div class="in">${header(title)}<div class="now ${s.warm?'c-peach':s.cool?'c-mint':''}"><div class="row" style="justify-content:space-between"><span class="kicker">${s.warm?'Warm-up':s.cool?'Cool-down':`Set ${s.round} of ${s.sets}`}</span>${watchLink(s.id)}</div><p class="name">${esc(s.label||nameOf(s.id))}</p>
+      <div class="row" style="margin-top:4px">${gearChip(s.id)}${s.sides?`<span class="chip" style="background:var(--soft)">${s.secs} s each side</span>`:''}</div>${s.note?`<p class="note" style="margin:6px 0 0;color:var(--ink)">📝 ${esc(s.note)}</p>`:''}
       ${s.warm||s.cool?'':muscleBlock([s.id], 132)}<p class="kicker" id="side" style="text-align:center;margin:10px 0 0">${s.sides?'Left side first':''}</p><div class="clock" id="clk">${fmt(left)}</div>
       <div class="row" style="justify-content:center"><button class="btn" id="go" type="button">▶ Start</button><button class="btn soft" id="skip" type="button">Skip</button></div>${s.cool?'<div class="row" style="justify-content:center;margin-top:10px"><button class="btn soft" id="skipCool" type="button">Skip cool-down</button></div>':''}</div><h2>Up next</h2><div class="card">${upNext(PL.i+1)}</div></div>`;
     const clk = $('#clk'), sideEl = $('#side'); let cd = null;
@@ -344,7 +348,7 @@ function drawStep(){
   const w0 = prev ? prev.w : sug ? sug.w : (last ? Math.max(...last.map(x=>+x.w||0)) : ''), r0 = prev ? prev.r : P.topReps(s.reps);
   const ex = P.EX[s.id] || {};
   $('#player').innerHTML = `<div class="in">${header(title)}<div class="now"><div class="row" style="justify-content:space-between"><span class="kicker">Set ${s.round} of ${s.sets}${s.ss?' · superset':''}</span>${watchLink(s.id)}</div>
-    <p class="name">${esc(ex.n||s.id)}</p><div class="row" style="margin:4px 0 6px">${gearChip(s.id)}</div><p class="muted" style="margin:0;font-weight:700;color:var(--ink)">${esc(P.repsLabel(s.id, s.reps))}${PL.gentle?' · gentler version':''}</p>${PL.x.session && PL.x.session.tempo ? '<p class="note" style="margin:4px 0 0">🐢 Tempo week: lower slowly for 3 seconds</p>' : ''}
+    <p class="name">${esc(s.label||ex.n||s.id)}</p><div class="row" style="margin:4px 0 6px">${gearChip(s.id)}</div><p class="muted" style="margin:0;font-weight:700;color:var(--ink)">${esc(P.repsLabel(s.id, s.reps))}${PL.gentle?' · gentler version':''}</p>${PL.x.session && PL.x.session.tempo ? '<p class="note" style="margin:4px 0 0">🐢 Tempo week: lower slowly for 3 seconds</p>' : ''}${s.note?`<p class="note" style="margin:4px 0 0;color:var(--ink)">📝 ${esc(s.note)}</p>`:''}
     ${muscleBlock([s.id], 132)}
     ${lastStr ? `<p class="note" style="margin:8px 0 0">Last time: ${esc(lastStr)}</p>` : ''}
     ${sug ? `<div class="suggest">${sug.up?'📈':'💡'} ${esc(sug.msg)}</div>` : ''}
@@ -532,18 +536,24 @@ function renderPrograms(){
   let html = `<h1>Programs</h1><p class="sub">Tap one to see it. Switch any time; weeks run Monday to Sunday.</p>`;
   if(cur){ const sessions = logs.filter(l => l.program===cur.id && l.kind==='strength' && l.date >= S.programStart).length, total = cur.weeks*3;
     html += `<div class="tint c-${cur.c}"><p class="kicker">Current program</p><p class="big">${cur.e} ${esc(cur.name)}</p><p class="muted" style="margin:0 0 10px">${wk>cur.weeks ? 'Finished! 🎉 Pick your next one below.' : `Week ${Math.max(1,wk)} of ${cur.weeks} · ${sessions} of ${total} sessions done`}</p><div class="prog"><i style="width:${Math.min(100,sessions/total*100)}%"></i></div><div class="row" style="margin-top:12px"><button class="btn soft" type="button" data-prog="${cur.id}">View</button></div></div>`; }
-  html += `<h2>All programs</h2><div class="grid2">${P.PROGRAMS.map(p => `<button class="tile c-${p.c}" type="button" data-prog="${p.id}">${p.isNew?'<span class="badge">New</span>':''}<span class="e">${p.e}</span><b>${esc(p.name)}</b><span>${p.weeks} week${p.weeks>1?'s':''} · ${esc(p.tag)}</span></button>`).join('')}</div>`;
+  const tile = p => `<button class="tile c-${p.c}" type="button" data-prog="${p.id}">${p.isNew?'<span class="badge">New</span>':''}<span class="e">${p.e}</span><b>${esc(p.name)}</b><span>${p.weeks} week${p.weeks>1?'s':''} · ${esc(p.tag)}</span></button>`;
+  const owners = [...new Set(P.PROGRAMS.filter(p=>p.owner).map(p=>p.owner))];
+  owners.forEach(o => { html += `<h2>${esc(o)}’s programs</h2><div class="grid2">${P.PROGRAMS.filter(p=>p.owner===o).map(tile).join('')}</div>`; });
+  html += `<h2>All programs</h2><div class="grid2">${P.PROGRAMS.filter(p=>!p.owner).map(p => `<button class="tile c-${p.c}" type="button" data-prog="${p.id}">${p.isNew?'<span class="badge">New</span>':''}<span class="e">${p.e}</span><b>${esc(p.name)}</b><span>${p.weeks} week${p.weeks>1?'s':''} · ${esc(p.tag)}</span></button>`).join('')}</div>`;
   const hist = (S.history||[]).slice().reverse();
   if(hist.length) html += `<h2>Past programs</h2><div class="card">${hist.map(h => { const p = P.program(h.id); return `<div class="item"><span class="ic c-${p.c}">${p.e}</span><span><b>${esc(p.name)}</b><span class="s">${esc(h.start)} to ${esc(h.end)}</span></span><span></span></div>`; }).join('')}</div>`;
   $('#v-programs').innerHTML = html;
 }
 function programSheet(id){
   const p = P.program(id), mon = thisWeek(), nextMon = P.addDays(mon, 7), sch = {...P.DEFAULT_SCHEDULE, ...(S.schedule||{})};
-  const dayHTML = slot => { const d = p.days[slot]; return `<div class="card" style="margin-top:10px"><p class="kicker muted">${P.DAY_NAMES[sch[slot]]}</p><p style="font-weight:800;font-size:17px;margin:2px 0 6px">${esc(d.title)}</p>${muscleBlock(sessionIds(d), 120)}${d.ex.map(b => (b.ss||[b]).map((x,k) => `<div class="item" style="padding:7px 0"><span class="ic" style="width:30px;height:30px;font-size:13px;background:var(--line)">${b.ss?(k?'↳':'SS'):'•'}</span><span><b style="font-size:14.5px">${esc(P.EX[x.id].n)}</b><span class="s">${x.sets} sets · ${esc(P.repsLabel(x.id, x.reps))} · ${esc(P.gear(x.id))}</span></span><a class="link" style="font-size:13px" href="${P.yt(P.EX[x.id].q)}" target="_blank" rel="noopener">Watch</a></div>`).join('')).join('')}</div>`; };
+  const dayHTML = slot => { const d = p.days[slot]; return `<div class="card" style="margin-top:10px"><p class="kicker muted">${P.DAY_NAMES[sch[slot]]}</p><p style="font-weight:800;font-size:17px;margin:2px 0 6px">${esc(d.title)}</p>${muscleBlock(sessionIds(d), 120)}${d.ex.map(b => (b.ss||[b]).map((x,k) => `<div class="item" style="padding:7px 0"><span class="ic" style="width:30px;height:30px;font-size:13px;background:var(--line)">${b.ss?(k?'↳':'SS'):'•'}</span><span><b style="font-size:14.5px">${esc(x.label||P.EX[x.id].n)}</b><span class="s">${x.sets} sets · ${esc(P.repsLabel(x.id, x.reps))} · ${esc(P.gear(x.id))}</span></span><a class="link" style="font-size:13px" href="${P.yt(P.EX[x.id].q)}" target="_blank" rel="noopener">Watch</a></div>`).join('')).join('')}</div>`; };
   const isCur = S.program===id;
   openSheet(`${p.e} ${p.name}`, `<p class="muted" style="margin-top:0">${esc(p.blurb)}</p><div class="row"><span class="chip" style="background:var(--card)">${p.weeks} week${p.weeks>1?'s':''}</span><span class="chip" style="background:var(--card)">${esc(p.level)}</span><span class="chip" style="background:var(--card)">3 sessions a week</span></div>
     ${['A','B','C'].map(dayHTML).join('')}
-    <p class="note" style="margin-top:12px">Sets build gently from week to week through your weights: the app suggests when to go up.</p>
+    ${p.weeksData ? `<div class="card" style="margin-top:12px"><b>How the 4 weeks work</b>${[1,2,3,4].map(w=>`<p class="note" style="margin:6px 0 0;color:var(--ink)"><b>Week ${w}: ${esc((p.weeksData[String(w)]||{}).phase||'')}.</b> ${esc((p.progression||{})['week_'+w]||'')}</p>`).join('')}${(p.progression||{}).after_cycle?`<p class="note" style="margin:6px 0 0">After week 4: ${esc(p.progression.after_cycle)}</p>`:''}</div>
+      <p class="note" style="margin-top:8px">Shown above: week 1. Weeks 2–4 bring different exercises, as set out in the program.</p>
+      ${p.nutrition && p.nutrition.protein ? `<details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer">Recovery notes from the program</summary>${Object.entries(p.nutrition).map(([k,v])=>`<p class="note" style="margin:6px 0 0;color:var(--ink)"><b>${esc(k.replace('_',' '))}:</b> ${esc(v)}</p>`).join('')}</details>` : ''}`
+      : `<p class="note" style="margin-top:12px">Sets build gently from week to week through your weights: the app suggests when to go up.</p>`}
     ${isCur ? '<p class="chip" style="margin-top:10px">This is your current program</p>' : `<div class="stack" style="margin-top:14px"><button class="btn wide" type="button" data-pstart="${mon}">Start this week (Monday ${P.parse(mon).getDate()} ${F.MONTHS[P.parse(mon).getMonth()].slice(0,3)})</button><button class="btn line wide" type="button" data-pstart="${nextMon}">Start next Monday (${P.parse(nextMon).getDate()} ${F.MONTHS[P.parse(nextMon).getMonth()].slice(0,3)})</button></div>`}`,
     body => { body.onclick = async e => { const b = e.target.closest('[data-pstart]'); if(!b) return;
       const hist = (S.history||[]).slice(); if(S.program) hist.push({id:S.program, start:S.programStart, end:P.addDays(b.dataset.pstart,-1)});

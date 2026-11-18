@@ -1,3 +1,4 @@
+import { IMPORTED_EX, IMPORTED_GEAR, IMPORTED_PROGRAMS } from './imported.js';
 /* =====================================================================
    Move well: plan.js
    Programs, exercises, stretches, finishers, the 10 km running plan,
@@ -95,7 +96,9 @@ export function repsLabel(id, reps){
   if(ex.side) return `${num} per side`;
   return `${num} reps`;
 }
+Object.assign(GEAR, IMPORTED_GEAR);
 export const gear = id => GEAR[id] || (EX[id] && EX[id].w ? 'Dumbbells' : 'Bodyweight');
+Object.assign(EX, IMPORTED_EX);
 export const yt = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
 
 /* ---------- Building blocks ---------- */
@@ -190,7 +193,15 @@ export const PROGRAMS = [
    C:{title:'Full Body & Core', warm:'core', ex:[ E('goblet',3,'10',45), E('lateral',2,'12',45), E('deadbug',2,'10 each',30), E('plank',2,'30 s',30) ]}
   }}
 ];
+PROGRAMS.push(...IMPORTED_PROGRAMS);
 export const program = id => PROGRAMS.find(p=>p.id===id) || PROGRAMS[0];
+/* Imported programs set out every week themselves (no automatic swaps): weeks 1–4, then
+   the cycle repeats with the program's own advice for the next round. */
+export function explicitSession(p, slot, week){
+  const w = ((week-1) % 4) + 1, round = Math.floor((week-1) / 4) + 1, wd = p.weeksData[String(w)] || p.weeksData[w], d = wd.days[slot];
+  const prog = p.progression || {};
+  return {...d, warm:'custom', week, round, style: wd.phase + ' week', styleNote: (prog['week_'+w] || '') + (round > 1 && prog.after_cycle ? ` Round ${round}: ${prog.after_cycle}` : ''), tempo:false};
+}
 
 /* ---------- Variety ----------
    Each program rotates through 4 different weeks, then repeats with a step up (round 2,
@@ -374,7 +385,7 @@ export function planFor(state, date, opts={}){
     if(s[slot] !== d || !inProgram) return;
     const pausedFrom = pw && pw.mode==='pause' && date >= pw.from;
     if(pausedFrom) out.push({key:'str-'+slot, kind:'strength', slot, title:PERIOD_SESSION.title, session:PERIOD_SESSION, period:true});
-    else out.push({key:'str-'+slot, kind:'strength', slot, title:p.days[slot].title, session:sessionFor(p.days[slot], wk), gentle: !!(pw && pw.mode==='gentle' && date >= pw.from), program:p.id, week:wk});
+    else out.push({key:'str-'+slot, kind:'strength', slot, title:p.days[slot].title, session: p.weeksData ? explicitSession(p, slot, wk) : sessionFor(p.days[slot], wk), gentle: !!(pw && pw.mode==='gentle' && date >= pw.from), program:p.id, week:wk});
   });
   if(state && state.runStart && s.run === d){ const rw = runWeek(state, date); if(rw <= RUN_PLAN.length) out.push({key:'run', kind:'run', title:'Run', km:RUN_PLAN[rw-1], week:rw}); }
   if(state && state.runStart && s.runOpt === d) out.push({key:'runopt', kind:'run', optional:true, title:'Easy run (optional)', km:3});
