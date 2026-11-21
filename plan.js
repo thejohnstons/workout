@@ -73,7 +73,26 @@ export const EX = {
   skip:{n:'Skipping',q:'jump rope basics',low:'knees'},
   bandrow:{n:'Band rows',q:'resistance band row',},
   bandkick:{n:'Banded kickbacks',v:'Donkey kicks.',q:'banded glute kickback',side:1},
-  bandsquat:{n:'Banded squats',v:'Squats.',q:'banded squat booty band'}
+  bandsquat:{n:'Banded squats',v:'Squats.',q:'banded squat booty band'},
+  /* Less common moves, for variety (several are great for runners) */
+  copenhagen:{n:'Copenhagen plank (knee on bench)',q:'short lever copenhagen plank bench',side:1,low:'sideplank'},
+  slcalf:{n:'Single-leg calf raises',q:'single leg calf raise dumbbell',w:1,side:1},
+  tibraise:{n:'Tibialis raises',q:'tibialis raise against wall for runners'},
+  latlunge:{n:'Lateral lunges',q:'goblet lateral lunge form',w:1,side:1},
+  cossack:{n:'Cossack squats',q:'cossack squat beginner',side:1,low:'latlunge'},
+  stepdown:{n:'Slow step-downs',q:'eccentric step down off bench knee',side:1},
+  airplane:{n:'Hip airplanes',q:'hip airplane exercise holding support',side:1},
+  suitcase:{n:'Suitcase carry',q:'suitcase carry one dumbbell',w:1,side:1},
+  pallof:{n:'Pallof press',q:'pallof press resistance band',side:1},
+  bearplank:{alt:1,n:'Bear plank shoulder taps',q:'bear plank shoulder taps'},
+  hollow:{n:'Hollow body hold',q:'hollow body hold beginner',low:'deadbug'},
+  getup:{n:'Turkish get-up',q:'kettlebell turkish get up step by step',w:1,side:1,low:'halo'},
+  windmill:{n:'Kettlebell windmill',q:'kettlebell windmill form',w:1,side:1},
+  zpress:{n:'Seated Z-press',q:'dumbbell z press seated floor',w:1},
+  cuban:{n:'Cuban press',q:'dumbbell cuban press shoulder',w:1},
+  frogpump:{n:'Frog pumps',q:'frog pumps glute exercise'},
+  sideabd:{n:'Side-lying leg raises',q:'side lying hip abduction band',side:1},
+  bridgemarch:{alt:1,n:'Glute bridge marches',q:'glute bridge march'}
 };
 /* What you need for each exercise. Anything not listed: "Dumbbells" if it uses weights, else "Bodyweight". */
 export const GEAR = {
@@ -85,7 +104,10 @@ export const GEAR = {
   chest:'Dumbbells + bench (or the floor)', fly:'Dumbbells + bench (or the floor)', pushup:'Bodyweight', kpushup:'Bodyweight', curl:'Dumbbells', hammer:'Dumbbells',
   kickback:'Dumbbells', dips:'Bench', overhead:'One dumbbell', pullapart:'Long band',
   kbswing:'8 kg kettlebell', kbdeadlift:'8 kg kettlebell', kbgoblet:'8 kg kettlebell', halo:'8 kg kettlebell', kbrow:'8 kg kettlebell + bench', kbpress:'8 kg kettlebell',
-  skip:'Skipping rope', bandrow:'Long band', bandkick:'Booty band', bandsquat:'Booty band'
+  skip:'Skipping rope', bandrow:'Long band', bandkick:'Booty band', bandsquat:'Booty band',
+  copenhagen:'Bench', slcalf:'One dumbbell (hold the wall or bench)', tibraise:'Bodyweight (a wall)', latlunge:'One dumbbell', cossack:'Bodyweight (a dumbbell to make it harder)',
+  stepdown:'Bench', airplane:'Bodyweight (hold the bench)', suitcase:'One heavy dumbbell', pallof:'Long band (anchored)', bearplank:'Bodyweight', hollow:'Bodyweight',
+  getup:'8 kg kettlebell', windmill:'8 kg kettlebell', zpress:'Dumbbells', cuban:'Light dumbbells', frogpump:'Bodyweight (a dumbbell to make it harder)', sideabd:'Booty band', bridgemarch:'Bodyweight'
 };
 /* How the reps read on screen: "10 per side", "16 total, alternating (8 per side)", "30 s each side". */
 export function repsLabel(id, reps){
@@ -208,20 +230,20 @@ export function explicitSession(p, slot, week){
    round 3…). Exercises swap for others that train the same muscles, so no two weeks in a
    cycle are copies, while key lifts come back often enough to see progress. */
 export const ALT = {
-  goblet:['goblet','kbgoblet','sumo','bandsquat'], sumo:['sumo','pulsesumo','kbgoblet','goblet'], pulsesumo:['pulsesumo','sumo','bandsquat','goblet'],
-  squat:['squat','bandsquat','kbgoblet','sumo'], split:['split','rlunge','bulgarian','stepup'], bulgarian:['bulgarian','split','stepup','wlunge'],
-  rlunge:['rlunge','curtsy','split','wlunge'], wlunge:['wlunge','rlunge','curtsy','stepup'], curtsy:['curtsy','rlunge','skater','split'], stepup:['stepup','bulgarian','split','rlunge'],
-  rdl:['rdl','kbdeadlift','sldl','sumodl'], sldl:['sldl','rdl','kbdeadlift','sumodl'], sumodl:['sumodl','kbdeadlift','rdl','kbswing'], kbswing:['kbswing','sumodl','kbdeadlift','rdl'],
-  thrust:['thrust','slbridge','bridge','bandkick'], bridge:['bridge','slbridge','thrust','bandkick'], slbridge:['slbridge','bridge','bandkick','thrust'],
-  calf:['calf','skip','calf','knees'], bandwalk:['bandwalk','clam','hydrant','bandkick'], clam:['clam','bandwalk','hydrant','bandkick'],
-  donkey:['donkey','bandkick','hydrant','clam'], hydrant:['hydrant','donkey','clam','bandwalk'],
-  press:['press','kbpress','front','lateral'], lateral:['lateral','front','halo','press'], front:['front','lateral','halo','press'],
+  goblet:['goblet','kbgoblet','latlunge','sumo','cossack','bandsquat'], sumo:['sumo','pulsesumo','cossack','kbgoblet','latlunge','goblet'], pulsesumo:['pulsesumo','sumo','bandsquat','goblet'],
+  squat:['squat','bandsquat','latlunge','kbgoblet','cossack','sumo'], split:['split','rlunge','stepdown','bulgarian','latlunge','stepup'], bulgarian:['bulgarian','split','stepdown','stepup','cossack','wlunge'],
+  rlunge:['rlunge','curtsy','stepdown','split','cossack','wlunge'], wlunge:['wlunge','rlunge','latlunge','curtsy','stepup'], curtsy:['curtsy','rlunge','latlunge','skater','cossack','split'], stepup:['stepup','bulgarian','stepdown','split','latlunge','rlunge'],
+  rdl:['rdl','kbdeadlift','airplane','sldl','sumodl'], sldl:['sldl','rdl','airplane','kbdeadlift','sumodl'], sumodl:['sumodl','kbdeadlift','rdl','kbswing'], kbswing:['kbswing','sumodl','kbdeadlift','rdl'],
+  thrust:['thrust','slbridge','frogpump','bridge','bridgemarch','bandkick'], bridge:['bridge','slbridge','frogpump','thrust','bridgemarch','bandkick'], slbridge:['slbridge','bridge','bridgemarch','bandkick','frogpump','thrust'],
+  calf:['calf','skip','slcalf','calf','tibraise','knees'], bandwalk:['bandwalk','clam','sideabd','hydrant','airplane','bandkick'], clam:['clam','bandwalk','sideabd','hydrant','airplane','bandkick'],
+  donkey:['donkey','bandkick','sideabd','hydrant','clam'], hydrant:['hydrant','donkey','sideabd','clam','bandwalk'],
+  press:['press','kbpress','zpress','front','getup','lateral'], lateral:['lateral','front','cuban','halo','zpress','press'], front:['front','lateral','zpress','halo','cuban','press'],
   row1:['row1','kbrow','row','bandrow'], row:['row','row1','bandrow','kbrow'], renegade:['renegade','row1','kbrow','row'], bandrow:['bandrow','row','row1','pullapart'],
   chest:['chest','pushup','fly','kpushup'], fly:['fly','chest','kpushup','pushup'], pushup:['pushup','kpushup','chest','fly'], kpushup:['kpushup','pushup','chest','fly'],
   curl:['curl','hammer','curl','hammer'], hammer:['hammer','curl','hammer','curl'], kickback:['kickback','overhead','dips','kickback'], overhead:['overhead','kickback','dips','overhead'], dips:['dips','kickback','overhead','dips'],
-  pullapart:['pullapart','bandrow','halo','pullapart'],
-  plank:['plank','sideplank','climber','deadbug'], sideplank:['sideplank','plank','russian','heeltap'], deadbug:['deadbug','birddog','legraise','heeltap'], birddog:['birddog','deadbug','plank','bridge'],
-  bicycle:['bicycle','russian','heeltap','flutter'], russian:['russian','bicycle','halo','heeltap'], legraise:['legraise','flutter','deadbug','heeltap'], flutter:['flutter','legraise','bicycle','climber'], heeltap:['heeltap','bicycle','russian','deadbug'],
+  pullapart:['pullapart','bandrow','cuban','halo','pullapart'],
+  plank:['plank','sideplank','copenhagen','climber','bearplank','deadbug','hollow'], sideplank:['sideplank','plank','copenhagen','russian','pallof','heeltap','suitcase'], deadbug:['deadbug','birddog','hollow','legraise','pallof','heeltap','bearplank'], birddog:['birddog','deadbug','bearplank','plank','pallof','bridge'],
+  bicycle:['bicycle','russian','pallof','heeltap','hollow','flutter'], russian:['russian','bicycle','pallof','halo','windmill','heeltap','suitcase'], legraise:['legraise','flutter','hollow','deadbug','heeltap'], flutter:['flutter','legraise','bicycle','climber'], heeltap:['heeltap','bicycle','hollow','russian','deadbug'],
   climber:['climber','skip','knees','jacks'], jacks:['jacks','skip','knees','climber'], knees:['knees','skip','jacks','climber'], squatjump:['squatjump','kbswing','skater','jacks'],
   burpee:['burpee','modburpee','kbswing','climber'], modburpee:['modburpee','squatjump','kbswing','climber'], skater:['skater','curtsy','squatjump','skip']
 };
@@ -238,26 +260,29 @@ export const WEEK_STYLES = [
   {name:'Pump week', note:'Lighter weights, more reps, shorter rests.', sets:0, reps:r => shift(r,2,3,3,10), rest:0.7}
 ];
 const CARDIO = new Set(['skip','knees','jacks','climber']);
-const TIMED_OK = new Set(['plank','sideplank','climber','skip','knees','jacks','skater','flutter']);
+const TIMED_OK = new Set(['plank','sideplank','climber','skip','knees','jacks','skater','flutter','copenhagen','hollow','suitcase']);
+const TIMED_ONLY = {copenhagen:'20 s each', hollow:'25 s', suitcase:'30 s each'};
 // Make the reps suit the exercise that was swapped in.
 function fitReps(id, reps, w){
   const ex = EX[id] || {}; let r = String(reps); const timed = /\d\s*s\b/.test(r);
   if(CARDIO.has(id)) return timed ? r.replace(/\s*each.*$/,'') : (w === 3 ? '40 s' : '30 s');
+  if(TIMED_ONLY[id] && !timed) return TIMED_ONLY[id];
+  if(TIMED_ONLY[id] && timed && /each/.test(TIMED_ONLY[id]) && !/each/.test(r)) return r + ' each';
   if(timed && !TIMED_OK.has(id)) return ex.side && !ex.alt ? '12 each' : ex.alt ? '16' : '12';
   if(timed){ r = r.replace(/\s*each.*$/,''); if(id==='sideplank') r += ' each'; if(id==='plank') r = r.replace(/(\d+)/, (m,a)=>String(Math.max(30,+a))); return r; }
   if(/each/.test(r) && !ex.side && !ex.alt) return r.replace(/\s*each.*$/,'');
   return r;
 }
-function pick(id, w, used){
-  const alts = ALT[id] || [id];
-  for(let k=0; k<alts.length; k++){ const c = alts[(w + k) % alts.length]; if(!used.has(c)){ used.add(c); return c; } }
+function pick(id, w, used, round=1){
+  const alts = ALT[id] || [id], start = w + (round-1)*3;
+  for(let k=0; k<alts.length; k++){ const c = alts[(start + k) % alts.length]; if(!used.has(c)){ used.add(c); return c; } }
   used.add(id); return id;
 }
 /* The session for a given program week: week 1 is the program as written; weeks 2–4 swap
    in alternatives and change the style; from week 5 the cycle repeats with an extra set. */
 export function sessionFor(base, week){
   const w = ((week-1) % 4 + 4) % 4, round = Math.floor((week-1) / 4) + 1, style = WEEK_STYLES[w], used = new Set();
-  const conv = it => { const id = w === 0 ? it.id : pick(it.id, w, used); if(w === 0) used.add(it.id);
+  const conv = it => { const id = w === 0 && round === 1 ? it.id : pick(it.id, w === 0 ? 3 : w, used, round); if(w === 0 && round === 1) used.add(it.id);
     const sets = Math.min(5, it.sets + style.sets + (round > 1 ? 1 : 0));
     const reps = fitReps(id, style.reps(String(it.reps)), w);
     return {...it, id, sets, reps, rest: Math.round((it.rest||60) * (style.rest||1) / 5) * 5}; };
@@ -376,7 +401,20 @@ export function runWeek(state, date){
 }
 
 /* What's planned on a date: a list of {key, kind, title, session?} */
+/* Moves for one week only: state.moves[monday] = {"key@fromDate": "toDate"}.
+   Your default days stay the plan; a move only changes that week. */
 export function planFor(state, date, opts={}){
+  const moves = (state.moves || {})[monday(date)] || {};
+  const out = planForDefault(state, date, opts).filter(x => !moves[x.key + '@' + date]);
+  for(const [k, to] of Object.entries(moves)){
+    if(to !== date) continue;
+    const at = k.lastIndexOf('@'), key = k.slice(0, at), from = k.slice(at + 1);
+    const it = planForDefault(state, from, opts).find(x => x.key === key);
+    if(it) out.push({...it, movedFrom: from});
+  }
+  return out;
+}
+function planForDefault(state, date, opts={}){
   const s = {...DEFAULT_SCHEDULE, ...((state && state.schedule) || {})};
   const d = dow(date), out = [], p = program(state && state.program);
   const wk = programWeek(state, date), inProgram = state && state.program && wk >= 1 && wk <= p.weeks;

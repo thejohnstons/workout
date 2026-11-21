@@ -32,7 +32,13 @@ export const WORKS = {
   bicycle:[['obliques','abs'],[]], russian:[['obliques'],['abs']], legraise:[['abs'],['obliques']], flutter:[['abs'],['quads']], heeltap:[['obliques'],['abs']],
   climber:[['abs','shoulders'],['quads']], jacks:[['calves','shoulders'],['quads','glutes']], knees:[['quads','abs'],['calves']],
   squatjump:[['quads','glutes'],['calves']], burpee:[['quads','chest'],['shoulders','abs','glutes']], modburpee:[['quads','glutes'],['chest','abs']],
-  skater:[['glutes','quads'],['adductors','calves']]
+  skater:[['glutes','quads'],['adductors','calves']],
+  copenhagen:[['adductors','obliques'],['abs']], slcalf:[['calves'],[]], tibraise:[['calves'],[]], latlunge:[['adductors','glutes'],['quads']], cossack:[['adductors','glutes'],['quads','hamstrings']],
+  stepdown:[['quads','glutes'],[]], airplane:[['glutes'],['obliques','hamstrings']], suitcase:[['obliques','forearms'],['traps','abs']], pallof:[['obliques','abs'],['shoulders']],
+  bearplank:[['abs','shoulders'],['quads']], hollow:[['abs'],['obliques']], getup:[['shoulders','abs'],['glutes','obliques']], windmill:[['obliques','shoulders'],['hamstrings','glutes']],
+  zpress:[['shoulders','triceps'],['abs']], cuban:[['reardelts','shoulders'],[]], frogpump:[['glutes'],['adductors']], sideabd:[['glutes'],[]], bridgemarch:[['glutes','hamstrings'],['abs']],
+  kbswing:[['glutes','hamstrings'],['lowerback','shoulders']], kbdeadlift:[['hamstrings','glutes'],['lowerback']], kbgoblet:[['quads','glutes'],['abs']], halo:[['shoulders'],['abs']],
+  kbrow:[['lats','traps'],['biceps']], kbpress:[['shoulders','triceps'],['abs']], skip:[['calves'],['shoulders','quads']], bandrow:[['lats','traps'],['biceps']], bandkick:[['glutes'],['hamstrings']], bandsquat:[['quads','glutes'],['adductors']]
 };
 
 export function worked(ids){

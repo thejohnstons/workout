@@ -163,8 +163,9 @@ function renderToday(){
   html += `<div class="card"><div class="week">${P.DAY_NAMES.map((dn,i) => { const d = P.addDays(mon,i), pl = P.planFor(S, d, {periodWeek:periodWeek(d)}).filter(x=>!x.night && !x.optional);
       const done = logs.some(l => l.date===d && l.kind!=='stretch-night' && !(l.planKey==='night'));
       const run = pl.some(x=>x.kind==='run'), cls = (done ? 'done' : run ? 'run' : pl.length ? 'plan' : '') + (d===date ? ' today' : '');
-      return `<div><div class="d" style="${d===date?'color:var(--blue);font-weight:800':''}">${d===date?'Today':dn}</div><div class="n ${cls}${isPeriodDay(d)?' flow':''}">${done?'✓':P.parse(d).getDate()}</div></div>`; }).join('')}</div>
-    <p class="note" style="margin:10px 0 0">● done · ○ planned · <span style="color:#7A9A1E">●</span> run${cycleOn()?' · 🌸 period':''}</p></div>`;
+      return `<button type="button" class="wd" data-day="${d}" aria-label="${dn} ${P.parse(d).getDate()}: see the day"><div class="d" style="${d===date?'color:var(--blue);font-weight:800':''}">${d===date?'Today':dn}</div><div class="n ${cls}${isPeriodDay(d)?' flow':''}">${done?'✓':P.parse(d).getDate()}</div></button>`; }).join('')}</div>
+    <div class="row" style="justify-content:center;gap:8px"><button type="button" class="calbtn" data-week="${P.monday(date)}">🗓️ Week</button><button type="button" class="calbtn" data-cal="${date.slice(0,7)}">📅 Calendar ⌄</button></div>
+    <p class="note" style="margin:6px 0 0">● done · ○ planned · <span style="color:#7A9A1E">●</span> run${cycleOn()?' · 🌸 period':''}</p></div>`;
   // today's sessions
   const main = plan.filter(x => !x.night && !x.optional);
   if(!S.program) html += `<div class="tint c-pink" style="margin-top:12px"><p class="kicker">Get started</p><p class="big">Choose a program</p><p class="muted">Pick from 11 programs. Weeks run Monday to Sunday.</p><button class="btn" data-go="programs" type="button">See programs</button></div>`;
@@ -248,6 +249,11 @@ document.addEventListener('click', async e => {
   if(d.editcycle){ return editCycleSheet(d.editcycle); }
   if(d.metric){ return metricSheet(d.metric); }
   if(d.starttest){ return startTests(); }
+  if(d.day){ return daySheet(d.day); }
+  if(d.cal){ return calendarSheet(d.cal); }
+  if(d.week){ return weekSheet(d.week); }
+  if(d.exstats){ return exStatsSheet(d.exstats); }
+  if(d.allex){ return allExercisesSheet(); }
   if(t.id==='mAdd') return addMetricsSheet();
   if(t.id==='mChoose') return chooseMetricsSheet();
 });
@@ -512,12 +518,12 @@ function runLogSheet(key, mins){
    MANUAL LOG ("Log my own workout")
    ===================================================================== */
 const OWN_TYPES = [['Upper Body','💪'],['Lower Body','🍑'],['Full Body','🏋️‍♀️'],['Core','🔥'],['Pilates','🧘‍♀️'],['Yoga','🌿'],['Stretch','🌙'],['HIIT','⚡'],['Run','🏃‍♀️'],['Walk','🚶‍♀️'],['YouTube follow-along','▶️'],['Other','✨']];
-function manualSheet(){
+function manualSheet(onDate){
   const today = P.planFor(S, TODAY(), {periodWeek:periodWeek()}).filter(x => !isDone(TODAY(), x.key));
   openSheet('Log my own workout', `
     <label class="l" id="tl">What did you do?</label><div class="chips" role="group" aria-labelledby="tl">${OWN_TYPES.map(([t,e],i)=>`<button class="chip" type="button" data-type="${esc(t)}" aria-pressed="${i===0}">${e} ${esc(t)}</button>`).join('')}</div>
     <label class="l" for="mt">Name (this is what goes in your Exercise calendar)</label><input class="f" id="mt" value="Upper Body">
-    <div class="grid2"><div><label class="l" for="md">Date</label><input class="f" id="md" type="date" value="${TODAY()}" max="${TODAY()}"></div><div><label class="l" for="mm">Minutes</label><input class="f" id="mm" inputmode="numeric" placeholder="e.g. 30"></div></div>
+    <div class="grid2"><div><label class="l" for="md">Date</label><input class="f" id="md" type="date" value="${onDate && onDate<=TODAY() ? onDate : TODAY()}" max="${TODAY()}"></div><div><label class="l" for="mm">Minutes</label><input class="f" id="mm" inputmode="numeric" placeholder="e.g. 30"></div></div>
     <div id="kmWrap" hidden><label class="l" for="mk">Distance (km)</label><input class="f" id="mk" inputmode="decimal" placeholder="e.g. 4"></div>
     <label class="l" for="ml">Link (optional, e.g. the YouTube video)</label><input class="f" id="ml" type="url" placeholder="https://…">
     <label class="l" for="mp">Does it count as one of this week’s planned sessions?</label>
@@ -662,6 +668,170 @@ function feelingSheet(from){
     body.onclick = async e => { const b = e.target.closest('[data-mode]'); if(!b) return; const wk = P.monday(from);
       await F.put('~move_periodweek', {id:wk, week:wk, mode:b.dataset.mode, from}); closeSheet(); toast(b.dataset.mode==='none' ? 'Keep going! 💪' : b.dataset.mode==='gentle' ? 'Gentler week set 🌸' : 'This week is paused. Rest well 🛋️'); };
   });
+}
+
+/* =====================================================================
+   DAY VIEW AND MONTH CALENDAR
+   ===================================================================== */
+const KIND_ICON = {run:'🏃‍♀️', stretch:'🌿', finisher:'🔥', test:'🏆', strength:'💪'};
+function dayDone(d){ return logs.filter(l => l.date===d).sort((a,b)=>(a.at||0)-(b.at||0)); }
+function dayPlan(d){ return S.program || S.runStart ? P.planFor(S, d, {periodWeek:periodWeek(d)}) : []; }
+function daySheet(d){
+  const dt = P.parse(d), title = `${P.DAY_NAMES[P.dow(d)]} ${dt.getDate()} ${F.MONTHS[dt.getMonth()]}`;
+  const done = dayDone(d), plan = dayPlan(d), past = d <= TODAY();
+  const doneHTML = done.length ? done.map(l => `<div class="item" style="padding:9px 0"><span class="ic c-pink" style="width:36px;height:36px">${l.manual?'✨':KIND_ICON[l.kind]||'💪'}</span><span><b>${esc(P.eventTitle(l))}</b><span class="s">${[l.mins?l.mins+' min':'', l.km?l.km+' km':'', l.sets?Object.keys(l.sets).length+' exercises':''].filter(Boolean).join(' · ')}</span></span><button class="btn soft" type="button" data-dview="${l.id}">View</button></div>`).join('') : `<p class="note">${past ? 'Nothing logged this day.' : ''}</p>`;
+  const planHTML = plan.length ? plan.map(x => {
+    const exs = x.session ? x.session.ex.flatMap(b=>b.ss||[b]).map(i => `${esc(i.label || (P.EX[i.id]||{}).n || i.id)} <span class="note">${i.sets} × ${esc(P.repsLabel(i.id, i.reps))}</span>`) : [];
+    const ticked = done.some(l => l.planKey===x.key);
+    return `<div class="card" style="margin-top:8px"><b>${ticked?'✓ ':''}${esc(x.title)}</b>${x.session && x.session.style ? ` <span class="chip" style="font-size:12px">✨ ${esc(x.session.style)}</span>` : ''}${x.optional ? ' <span class="note">(optional)</span>' : ''}
+      ${exs.length ? `<ul style="margin:8px 0 0;padding-left:18px">${exs.map(e=>`<li style="margin:3px 0">${e}</li>`).join('')}</ul>` : x.km ? `<p class="note" style="margin:6px 0 0;color:var(--ink)">${x.km} km</p>` : ''}</div>`; }).join('') : '<p class="note">Rest day. 😌</p>';
+  openSheet(title, `${past ? `<h3 style="margin:4px 0 6px">Done</h3><div class="card">${doneHTML}</div>` : ''}
+    <h3 style="margin:16px 0 6px">${past ? 'Planned' : 'Planned for this day'}</h3>${planHTML}
+    ${past ? `<button class="btn line wide" id="dLog" type="button" style="margin-top:14px">➕ Log a workout on this day</button>` : ''}
+    <button class="btn soft wide" type="button" data-cal="${d.slice(0,7)}" style="margin-top:10px">📅 Open the calendar</button>`, body => {
+    const lb = body.querySelector('#dLog'); if(lb) lb.onclick = () => manualSheet(d);
+    body.querySelectorAll('[data-dview]').forEach(b => b.onclick = () => logDetail(b.dataset.dview, d));
+  });
+}
+function logDetail(id, back){
+  const l = logs.find(x=>x.id===id); if(!l) return;
+  const sets = l.sets ? Object.entries(l.sets).map(([ex, arr]) => `<button type="button" class="item" data-exstats="${ex}" style="padding:8px 0;width:100%;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;color:inherit"><span><b>${esc((P.EX[ex]||{}).n || ex)}</b><span class="s">${arr.map(s=>s.w ? `${s.w} kg × ${s.r}` : `${s.r}`).join(' · ')}</span></span><span class="note">📈</span></button>`).join('') : '';
+  openSheet(P.eventTitle(l), `<p class="note">${esc(l.date)}${l.mins?` · ${l.mins} min`:''}${l.km?` · ${l.km} km`:''}${l.link?` · <a href="${esc(l.link)}" target="_blank" rel="noopener">link ↗</a>`:''}</p>${sets ? `<div class="card">${sets}</div>` : ''}
+    <div class="row" style="margin-top:14px"><button class="btn soft" type="button" id="ldBack">← Back to the day</button><button class="btn line" type="button" data-undo="${l.id}">Remove</button></div>`, body => { body.querySelector('#ldBack').onclick = () => daySheet(back); });
+}
+/* ---------- Week view: drag workouts to other days (that week only) ---------- */
+function moveItem(x, fromDay, toDay){
+  const wk = P.monday(fromDay), from = x.movedFrom || fromDay, k = x.key + '@' + from;
+  if(P.monday(toDay) !== wk){ toast('Workouts can move within the same week.'); return; }
+  const moves = {...(S.moves || {})}, week = {...(moves[wk] || {})};
+  if(toDay === from) delete week[k]; else week[k] = toDay;
+  if(Object.keys(week).length) moves[wk] = week; else delete moves[wk];
+  // keep only this week and later, so old moves don't pile up
+  Object.keys(moves).forEach(w => { if(w < P.addDays(P.monday(TODAY()), -7)) delete moves[w]; });
+  S.moves = moves; metaSave({moves}); render(); weekSheet(wk);
+  const nm = P.DAY_NAMES[P.dow(toDay)];
+  toast(toDay === from ? `${x.title} is back on ${nm} ✓` : `${x.title} moved to ${nm} ✓`);
+}
+function weekSheet(wk){
+  const days = [0,1,2,3,4,5,6].map(i => P.addDays(wk, i)), today = TODAY();
+  const moved = Object.keys((S.moves||{})[wk] || {}).length;
+  const card = (x, d) => { const done = dayDone(d).some(l => l.planKey===x.key), canMove = !done && !x.night;
+    return `<div class="wcard ${done?'done':''} ${canMove?'drag':''}" ${canMove?`data-wkey="${esc(x.key)}" data-wday="${d}" tabindex="0" role="button" aria-label="${esc(x.title)} on ${P.DAY_NAMES[P.dow(d)]}. Hold and drag, or tap to move"`:''}>
+      <span class="we">${KIND_ICON[x.kind]||'💪'}</span><span class="wt"><b>${done?'✓ ':''}${esc(x.title)}</b>${x.movedFrom?`<span class="note">moved from ${P.DAY_NAMES[P.dow(x.movedFrom)]}</span>`:x.optional?'<span class="note">optional</span>':''}</span>${canMove?'<span class="grip" aria-hidden="true">⠿</span>':''}</div>`; };
+  openSheet('🗓️ Your week', `<div class="row" style="justify-content:space-between;align-items:center"><button class="btn soft" type="button" data-week="${P.addDays(wk,-7)}" aria-label="Previous week">‹</button><b>${P.parse(wk).getDate()} ${F.MONTHS[P.parse(wk).getMonth()].slice(0,3)} – ${P.parse(days[6]).getDate()} ${F.MONTHS[P.parse(days[6]).getMonth()].slice(0,3)}</b><button class="btn soft" type="button" data-week="${P.addDays(wk,7)}" aria-label="Next week">›</button></div>
+    <p class="note" style="margin:8px 0">Hold and drag a workout to another day, or tap it to choose. Changes are for this week only.</p>
+    <div class="wgrid">${days.map(d => { const items = dayPlan(d).filter(x => !x.night);
+      return `<div class="wday ${d===today?'now':''} ${d<today?'past':''}" data-dropday="${d}"><div class="wdh"><b>${d===today?'Today':P.DAY_NAMES[P.dow(d)]}</b><span>${P.parse(d).getDate()}</span></div><div class="wlist">${items.map(x=>card(x,d)).join('') || '<span class="note">Rest day</span>'}</div></div>`; }).join('')}</div>
+    ${moved ? `<button class="btn soft wide" type="button" id="wkReset" style="margin-top:12px">↺ Reset this week to my usual days</button>` : ''}`, body => {
+    const rs = body.querySelector('#wkReset'); if(rs) rs.onclick = () => { const moves = {...(S.moves||{})}; delete moves[wk]; S.moves = moves; metaSave({moves}); render(); weekSheet(wk); toast('Back to your usual days ✓'); };
+    const itemFor = (key, d) => dayPlan(d).find(x => x.key === key);
+    // tap to move
+    const pickDay = (key, d) => { const x = itemFor(key, d); if(!x) return;
+      openSheet(`Move ${x.title}`, `<p class="note">Pick a day this week.</p><div class="chips">${days.map(dd => `<button class="chip" type="button" data-to="${dd}" ${dd===d?'aria-pressed="true"':''}>${P.DAY_NAMES[P.dow(dd)]} ${P.parse(dd).getDate()}</button>`).join('')}</div><button class="btn soft wide" type="button" id="mvBack" style="margin-top:14px">← Back to the week</button>`, b2 => {
+        b2.querySelectorAll('[data-to]').forEach(c => c.onclick = () => moveItem(x, d, c.dataset.to)); b2.querySelector('#mvBack').onclick = () => weekSheet(wk); }); };
+    // hold and drag (works with touch and mouse)
+    body.querySelectorAll('.wcard.drag').forEach(el => {
+      let timer = null, ghost = null, sx = 0, sy = 0, dragging = false;
+      const key = el.dataset.wkey, from = el.dataset.wday;
+      const end = e => { clearTimeout(timer); document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end);
+        if(dragging){ const pt = e.clientX!=null ? document.elementFromPoint(e.clientX, e.clientY) : null, zone = pt && pt.closest('[data-dropday]');
+          ghost && ghost.remove(); body.querySelectorAll('.wday').forEach(z => z.classList.remove('over')); el.classList.remove('lifted'); dragging = false;
+          const x = itemFor(key, from); if(zone && x && zone.dataset.dropday !== from) moveItem(x, from, zone.dataset.dropday); }
+        else if(e.type==='pointerup' && Math.abs(e.clientX-sx) < 8 && Math.abs(e.clientY-sy) < 8) pickDay(key, from); };
+      const move = e => { if(!dragging){ if(Math.abs(e.clientX-sx) > 10 || Math.abs(e.clientY-sy) > 10) clearTimeout(timer); return; }
+        e.preventDefault(); ghost.style.transform = `translate(${e.clientX-sx}px, ${e.clientY-sy}px)`;
+        const pt = document.elementFromPoint(e.clientX, e.clientY), zone = pt && pt.closest('[data-dropday]');
+        body.querySelectorAll('.wday').forEach(z => z.classList.toggle('over', z===zone)); };
+      el.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY;
+        timer = setTimeout(() => { dragging = true; if(navigator.vibrate) navigator.vibrate(30); const r = el.getBoundingClientRect();
+          ghost = el.cloneNode(true); ghost.classList.add('ghost'); Object.assign(ghost.style, {position:'fixed', left:r.left+'px', top:r.top+'px', width:r.width+'px', zIndex:200, pointerEvents:'none'}); document.body.appendChild(ghost); el.classList.add('lifted'); }, 220);
+        document.addEventListener('pointermove', move, {passive:false}); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end); });
+      el.addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); pickDay(key, from); } });
+      el.addEventListener('contextmenu', e => e.preventDefault());
+    });
+  }, 'Your week');
+}
+function calendarSheet(ym){
+  const [y, m] = ym.split('-').map(Number), first = new Date(y, m-1, 1), startPad = (first.getDay()+6)%7, daysIn = new Date(y, m, 0).getDate();
+  const prev = P.iso(new Date(y, m-2, 1)).slice(0,7), next = P.iso(new Date(y, m, 1)).slice(0,7);
+  let cells = '';
+  for(let i=0; i<startPad; i++) cells += '<span></span>';
+  let doneCount = 0;
+  for(let n=1; n<=daysIn; n++){
+    const d = P.iso(new Date(y, m-1, n)), done = dayDone(d), plan = d > TODAY() ? dayPlan(d).filter(x=>!x.night && !x.optional) : [];
+    if(done.length) doneCount++;
+    const kinds = [...new Set(done.map(l => l.kind==='run' ? 'run' : l.kind==='stretch' ? 'str' : 'wk'))];
+    const dots = done.length ? kinds.map(k=>`<i class="cd ${k}"></i>`).join('') : plan.length ? '<i class="cd plan"></i>' : '';
+    cells += `<button type="button" class="cday${d===TODAY()?' now':''}${isPeriodDay(d)?' flow':''}" data-day="${d}" aria-label="${n} ${F.MONTHS[m-1]}${done.length?', '+done.length+' done':plan.length?', planned':''}"><span>${n}</span><span class="dots">${dots}</span></button>`;
+  }
+  openSheet('📅 Calendar', `<div class="row" style="justify-content:space-between;align-items:center"><button class="btn soft" type="button" data-cal="${prev}" aria-label="Previous month">‹</button><b style="font-size:18px">${F.MONTHS[m-1]} ${y}</b><button class="btn soft" type="button" data-cal="${next}" aria-label="Next month">›</button></div>
+    <div class="cgrid" style="margin-top:12px">${P.DAY_NAMES.map(d=>`<span class="ch">${d[0]}</span>`).join('')}${cells}</div>
+    <p class="note" style="margin-top:10px"><i class="cd wk"></i> workout · <i class="cd run"></i> run · <i class="cd str"></i> stretch · <i class="cd plan"></i> planned${cycleOn()?' · 🌸 period':''}</p>
+    <div class="tint c-mint" style="margin-top:10px"><b>${doneCount} active day${doneCount===1?'':'s'}</b> in ${F.MONTHS[m-1]} 🎉</div>`);
+}
+
+/* =====================================================================
+   EXERCISE STATS (like Hevy): graphs, personal records, set records, history
+   ===================================================================== */
+const e1rm = (w, r) => r > 0 ? (r === 1 ? w : w * (1 + r / 30)) : 0;          // Epley estimate
+function exHistory(id){
+  return logs.filter(l => l.sets && l.sets[id]).sort((a,b) => a.date < b.date ? -1 : 1).map(l => {
+    const sets = l.sets[id].map(st => ({w:+st.w || 0, r:+String(st.r).replace(/[^\d.]/g,'') || 0}));
+    return {date:l.date, id:l.id, title:l.title, sets,
+      heaviest: Math.max(0, ...sets.map(s=>s.w)), one: Math.max(0, ...sets.map(s=>e1rm(s.w, s.r))),
+      bestSet: sets.reduce((b,s) => s.w*s.r > b.w*b.r ? s : b, {w:0,r:0}), volume: sets.reduce((t,s) => t + s.w*s.r, 0), reps: sets.reduce((t,s)=>t+s.r,0)};
+  });
+}
+const STAT_MODES = [['heaviest','Heaviest weight','kg'],['one','One rep max','kg'],['bestSetVol','Best set volume','kg'],['volume','Session volume','kg'],['reps','Total reps','']];
+let exMode = 'heaviest', exRange = 'year';
+function exChart(hist, mode){
+  const cut = exRange==='3m' ? P.addDays(TODAY(), -91) : exRange==='year' ? P.addDays(TODAY(), -365) : '0000';
+  const pts = hist.filter(h => h.date >= cut).map(h => ({date:h.date, v: mode==='bestSetVol' ? h.bestSet.w*h.bestSet.r : h[mode]})).filter(p => p.v > 0);
+  if(pts.length < 2) return `<p class="note" style="margin:14px 0">${pts.length ? 'One session so far: the graph appears after the next one.' : 'No sessions in this range yet.'}</p>`;
+  const W = 340, H = 190, L = 40, B = 24, vs = pts.map(p=>p.v), lo = Math.min(...vs), hi = Math.max(...vs), pad = (hi-lo)*0.15 || hi*0.1 || 1, y0 = lo - pad, y1 = hi + pad;
+  const t0 = P.parse(pts[0].date).getTime(), t1 = P.parse(pts[pts.length-1].date).getTime() || t0+1;
+  const X = d => L + (P.parse(d).getTime()-t0)/((t1-t0)||1)*(W-L-10), Y = v => 10 + (1-(v-y0)/(y1-y0))*(H-B-10);
+  const fmt = v => (Math.round(v*10)/10) + (STAT_MODES.find(m=>m[0]===mode)[2] ? ' kg' : '');
+  const best = pts.reduce((b,p) => p.v >= b.v ? p : b, pts[0]);
+  const ticks = [0, Math.floor(pts.length/2), pts.length-1].map(i => pts[i]);
+  return `<p style="margin:12px 0 4px"><b style="font-size:24px">${fmt(pts[pts.length-1].v)}</b> <span class="note">latest · best ${fmt(best.v)} on ${esc(niceDate(best.date))}</span></p>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(STAT_MODES.find(m=>m[0]===mode)[1])} over time">
+    ${[0,0.5,1].map(f => { const v = y0 + (y1-y0)*(1-f), yy = 10 + f*(H-B-10); return `<line x1="${L}" x2="${W-6}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="${L-6}" y="${yy+4}" font-size="10" text-anchor="end" fill="var(--muted)">${Math.round(v)}</text>`; }).join('')}
+    <polyline points="${pts.map(p => X(p.date)+','+Y(p.v)).join(' ')}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linejoin="round"/>
+    ${pts.map(p => `<circle cx="${X(p.date)}" cy="${Y(p.v)}" r="${p===best?5:3.5}" fill="${p===best?'var(--blue)':'var(--card)'}" stroke="var(--blue)" stroke-width="2"/>`).join('')}
+    ${ticks.map((p,i) => `<text x="${X(p.date)}" y="${H-6}" font-size="10" text-anchor="${i===0?'start':i===2?'end':'middle'}" fill="var(--muted)">${esc(niceDate(p.date, true))}</text>`).join('')}</svg>`;
+}
+function niceDate(d, short){ const dt = P.parse(d); return `${dt.getDate()} ${F.MONTHS[dt.getMonth()].slice(0,3)}${short ? '' : ' ' + String(dt.getFullYear()).slice(2)}`; }
+function exStatsSheet(id, tab='summary'){
+  const ex = P.EX[id] || {n:id}, hist = exHistory(id);
+  if(!hist.length){ openSheet(ex.n, '<p class="empty">No logged sets yet for this exercise.</p>'); return; }
+  const all = hist.flatMap(h => h.sets.map(s => ({...s, date:h.date})));
+  const heavy = all.reduce((b,s) => s.w > b.w || (s.w===b.w && s.r>b.r) ? s : b, all[0]);
+  const one = all.reduce((b,s) => e1rm(s.w,s.r) > e1rm(b.w,b.r) ? s : b, all[0]);
+  const bsv = all.reduce((b,s) => s.w*s.r > b.w*b.r ? s : b, all[0]);
+  const bses = hist.reduce((b,h) => h.volume > b.volume ? h : b, hist[0]);
+  // best weight for each number of reps
+  const byReps = {}; all.forEach(s => { if(s.r>0 && s.r<=20 && s.w>0 && (!byReps[s.r] || s.w > byReps[s.r].w)) byReps[s.r] = s; });
+  const tabs = `<div class="chips" role="tablist" style="margin:4px 0 6px">${[['summary','Summary'],['history','History'],['how','How to']].map(([k,l])=>`<button class="chip" type="button" role="tab" data-extab="${k}" aria-pressed="${tab===k}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if(tab==='summary') body = `<div class="chips" role="group" aria-label="Time range">${[['3m','3 months'],['year','Year'],['all','All time']].map(([k,l])=>`<button class="chip" type="button" data-exrange="${k}" aria-pressed="${exRange===k}">${l}</button>`).join('')}</div>
+    ${exChart(hist, exMode)}
+    <div class="chips" role="group" aria-label="What to graph" style="margin-top:6px">${STAT_MODES.map(([k,l])=>`<button class="chip" type="button" data-exmode="${k}" aria-pressed="${exMode===k}">${l}</button>`).join('')}</div>
+    <h3 style="margin:18px 0 6px">🏅 Personal records</h3><div class="card">
+      ${[['Heaviest weight', `${heavy.w} kg${heavy.r?` × ${heavy.r}`:''}`, heavy.date], ['Best one rep max (estimated)', `${Math.round(e1rm(one.w,one.r)*10)/10} kg`, one.date], ['Best set volume', `${bsv.w} kg × ${bsv.r}`, bsv.date], ['Best session volume', `${Math.round(bses.volume)} kg`, bses.date], ['Sessions logged', String(hist.length), '']].map(([k,v,d])=>`<div class="prrow"><span><b style="font-size:15px">${k}</b>${d?`<span class="s">${esc(niceDate(d))}</span>`:''}</span><b style="color:var(--blue)">${v}</b></div>`).join('')}</div>
+    ${Object.keys(byReps).length ? `<details class="card" style="margin-top:10px"><summary style="font-weight:800;cursor:pointer;padding:8px 0">Set records (best weight for each rep count)</summary>${Object.keys(byReps).map(Number).sort((a,b)=>a-b).map(r=>`<div class="prrow"><span><b>${r} rep${r===1?'':'s'}</b><span class="s">${esc(niceDate(byReps[r].date))}</span></span><b>${byReps[r].w} kg</b></div>`).join('')}</details>` : ''}
+    <p class="note" style="margin-top:10px">One rep max is estimated from your sets (Epley formula), so you never need to test a true max. Dumbbell weights are per dumbbell, as you log them.</p>`;
+  if(tab==='history') body = hist.slice().reverse().map(h => `<div class="card" style="margin-top:8px"><b>${esc(niceDate(h.date))}</b> <span class="note">${esc(h.title||'')}</span>${h.sets.map((s,i)=>`<div class="prrow"><span class="note" style="width:22px">${i+1}</span><span>${s.w?`<b>${s.w} kg</b> × `:''}${s.r} reps</span><span class="note">${s.w&&s.r?`1RM ~${Math.round(e1rm(s.w,s.r))}`:''}</span></div>`).join('')}</div>`).join('');
+  if(tab==='how') body = `<p>${esc(ex.n)}${P.gear ? ` · ${esc(P.gear(id))}` : ''}</p>${muscleBlock([id], 150)}<p style="margin-top:10px">${watchLink(id)}</p>`;
+  openSheet(ex.n, tabs + body, b => {
+    b.querySelectorAll('[data-extab]').forEach(x => x.onclick = () => exStatsSheet(id, x.dataset.extab));
+    b.querySelectorAll('[data-exmode]').forEach(x => x.onclick = () => { exMode = x.dataset.exmode; exStatsSheet(id, 'summary'); });
+    b.querySelectorAll('[data-exrange]').forEach(x => x.onclick = () => { exRange = x.dataset.exrange; exStatsSheet(id, 'summary'); });
+  });
+}
+function allExercisesSheet(){
+  const ids = [...new Set(logs.filter(l=>l.sets).flatMap(l => Object.keys(l.sets)))].map(id => ({id, h:exHistory(id)})).filter(x=>x.h.length).sort((a,b) => b.h[b.h.length-1].date.localeCompare(a.h[a.h.length-1].date));
+  openSheet('📈 Your exercises', ids.length ? `<div class="card">${ids.map(({id,h}) => `<button type="button" class="item" data-exstats="${id}" style="padding:9px 0;width:100%;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;color:inherit"><span><b style="font-size:15px">${esc((P.EX[id]||{n:id}).n)}</b><span class="s">${h.length} session${h.length===1?'':'s'} · last ${esc(niceDate(h[h.length-1].date))}</span></span><b>${Math.max(...h.map(x=>x.heaviest))||'–'} kg ›</b></button>`).join('')}</div>` : '<p class="empty">Log a workout with weights to see your exercises here.</p>');
 }
 
 /* =====================================================================
@@ -877,7 +1047,7 @@ function renderProgress(){
     ${testsHTML()}
     ${healthHTML()}
     <h2>Sessions per month</h2><div class="card"><div class="bars">${months.map((m,i)=>`<div><b style="color:var(--ink)">${counts[i]}</b><i class="c-${cols[i]}" style="height:${Math.max(6,counts[i]/max*100)}px"></i>${F.MONTHS[+m.slice(5)-1].slice(0,3)}</div>`).join('')}</div></div>
-    <h2>Personal bests 🎉</h2>${pbs.length ? `<div class="card">${pbs.map(([id,v])=>`<div class="item" style="padding:9px 0"><span class="ic c-pink" style="width:32px;height:32px;font-size:15px">🏋️</span><span><b style="font-size:15px">${esc(P.EX[id].n)}</b></span><b>${v} kg</b></div>`).join('')}</div>` : '<p class="empty">Log your weights in a workout and your bests show up here.</p>'}
+    <h2>Personal bests 🎉 <small><button class="link" style="border:0;background:none;padding:0" type="button" data-allex="1">All exercises</button></small></h2>${pbs.length ? `<div class="card">${pbs.map(([id,v])=>`<button type="button" class="item" data-exstats="${id}" style="padding:9px 0;width:100%;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;color:inherit"><span class="ic c-pink" style="width:32px;height:32px;font-size:15px">🏋️</span><span><b style="font-size:15px">${esc((P.EX[id]||{n:id}).n)}</b><span class="s">Tap for graphs and records</span></span><b>${v} kg ›</b></button>`).join('')}</div>` : '<p class="empty">Log your weights in a workout and your bests show up here.</p>'}
     <h2>Recent</h2>${recent.length ? `<div class="card">${recent.map(l=>`<div class="item"><span class="ic ${l.kind==='run'?'c-lime':l.kind==='stretch'?'c-lilac':l.kind==='finisher'?'c-peach':'c-pink'}">${l.kind==='run'?'🏃‍♀️':l.kind==='stretch'?'🌿':l.kind==='finisher'?'🔥':l.manual?'✨':'💪'}</span><span><b>${esc(P.eventTitle(l))}</b><span class="s">${esc(l.date)} · ${l.calId?'📅 in your calendar':l.pendingCal?'waiting for calendar':''}</span></span><button class="btn soft" type="button" data-undo="${l.id}">Remove</button></div>`).join('')}</div>` : '<p class="empty">Nothing logged yet.</p>'}
     ${(S.history||[]).length ? `<h2>Programs finished</h2><div class="card">${S.history.map(h=>{ const p=P.program(h.id); return `<div class="item"><span class="ic c-${p.c}">${p.e}</span><span><b>${esc(p.name)}</b><span class="s">${esc(h.start)} to ${esc(h.end)}</span></span><span></span></div>`; }).join('')}</div>` : ''}`;
 }
